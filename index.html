@@ -1,118 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MiniFY : BeautiFY</title>
-    <!-- Load Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Custom scrollbar styling for textareas */
-        textarea::-webkit-scrollbar {
-            width: 8px;
-        }
-        textarea::-webkit-scrollbar-track {
-            background: #1f2937; /* Dark background */
-        }
-        textarea::-webkit-scrollbar-thumb {
-            background-color: #4b5563; /* Gray thumb */
-            border-radius: 20px;
-        }
-
-        /* Modern background effect for the body */
-        body {
-            background-color: #0d1117; /* Even darker primary background */
-            background-image: radial-gradient(#1f2937 1px, transparent 1px);
-            background-size: 30px 30px;
-        }
-
-        /* Custom class for a softer, more modern glow on the checked mode button */
-        .peer-checked\:glow {
-            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5), 0 0 20px rgba(59, 130, 246, 0.3);
-            border-color: #3b82f6;
-        }
-    </style>
-    <script>
-        // Set up Tailwind configuration for custom font and colors
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        mono: ['Consolas', 'Monaco', 'monospace'],
-                    },
-                    colors: {
-                        'primary-dark': '#0d1117', // Updated base color
-                        'secondary-dark': '#161b22', // Updated card color
-                        'accent-blue': '#4c7cff', // Slightly brighter blue
-                        'accent-green': '#2ecc71', // Bright, modern green
-                        'input-bg': '#0f131a', // Darker background for textareas
-                    }
-                }
-            }
-        }
-    </script>
-</head>
-<body class="bg-primary-dark text-gray-100 font-sans min-h-screen p-4 md:p-8">
-
-    <div class="max-w-7xl mx-auto">
-
-        <!-- NEW HEADER STRUCTURE: Smaller App Title + Prominent Dynamic Type Status -->
-        <div class="flex flex-col items-center mb-10">
-            <!-- The Type Status is now the primary, dynamic header element -->
-            <div id="typeStatusWrapper" class="mt-2 flex items-center min-h-[40px]">
-                <span id="typeStatus" class="text-3xl font-extrabold px-4 py-1 rounded-full bg-gray-700 text-gray-300 transition duration-300 transform hover:scale-105">
-                </span>
-            </div>
-        </div>
-
-        <!-- Controls Section - Centered buttons -->
-        <div class="flex justify-center items-center mb-8 p-3 bg-secondary-dark/50 rounded-2xl shadow-xl border border-gray-700/50">
-
-            <!-- Mode Selection (Minify / Beautify) -->
-            <fieldset class="flex space-x-6">
-                <div>
-                    <input type="radio" id="mode-minify" name="mode" value="minify" checked class="hidden peer">
-                    <label for="mode-minify" class="cursor-pointer px-6 py-2 rounded-full text-base font-bold transition duration-300 border border-gray-600 peer-checked:bg-accent-blue peer-checked:text-white hover:bg-gray-700/70 peer-checked:shadow-lg peer-checked:shadow-accent-blue/50">
-                        MiniFY
-                    </label>
-                </div>
-                <div>
-                    <input type="radio" id="mode-beautify" name="mode" value="beautify" class="hidden peer">
-                    <label for="mode-beautify" class="cursor-pointer px-6 py-2 rounded-full text-base font-bold transition duration-300 border border-gray-600 peer-checked:bg-accent-blue peer-checked:text-white hover:bg-gray-700/70 peer-checked:shadow-lg peer-checked:shadow-accent-blue/50">
-                        BeautiFY
-                    </label>
-                </div>
-            </fieldset>
-
-        </div>
-
-        <!-- Code Areas -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-            <!-- Input Area -->
-            <div class="bg-secondary-dark rounded-2xl shadow-2xl p-6 flex flex-col border border-gray-700/50">
-
-                <textarea id="inputCode" rows="20" class="flex-grow bg-input-bg text-gray-200 font-mono text-sm p-4 rounded-xl border-2 border-gray-700 focus:ring-2 focus:ring-accent-blue focus:border-accent-blue transition duration-300 resize-none shadow-inner" placeholder="Paste your JavaScript or CSS code here..."></textarea>
-            </div>
-
-            <!-- Output Area -->
-            <div class="bg-secondary-dark rounded-2xl shadow-2xl p-6 flex flex-col relative border border-gray-700/50">
-
-                <!-- Label "Transformed Output" has been removed -->
-                <textarea id="outputCode" rows="20" readonly class="mt-1 flex-grow bg-input-bg text-gray-200 font-mono text-sm p-4 rounded-xl border-2 border-gray-700 resize-none cursor-default shadow-inner" placeholder="Processed code will appear here."></textarea>
-
-                <!-- Copy Button - Position adjusted slightly now that the label is gone -->
-                <button id="copyButton" class="absolute top-6 right-6 bg-accent-blue hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-150 transform hover:scale-[1.02] active:scale-[0.98] shadow-md shadow-accent-blue/30" onclick="copyToClipboard()">
-                    Copy Output
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- JavaScript Logic -->
-    <script>
-        // DOM Elements
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Code Minify & Beautify App</title><script src="https://cdn.tailwindcss.com"></script><style>textarea::-webkit-scrollbar{width:8px}textarea::-webkit-scrollbar-track{background:#1f2937}textarea::-webkit-scrollbar-thumb{background-color:#4b5563;border-radius:20px}body{background-color:#0d1117;background-image:radial-gradient(#1f2937 1px,transparent 1px);background-size:30px 30px}.peer-checked\:glow{box-shadow:0 0 10px rgba(59,130,246,.5),0 0 20px rgba(59,130,246,.3);border-color:#3b82f6}</style><script>tailwind.config={theme:{extend:{fontFamily:{sans:["Inter","sans-serif"],mono:["Consolas","Monaco","monospace"]},colors:{"primary-dark":"#0d1117","secondary-dark":"#161b22","accent-blue":"#4c7cff","accent-green":"#2ecc71","input-bg":"#0f131a"}}}}</script></head><body class="bg-primary-dark text-gray-100 font-sans min-h-screen p-4 md:p-8"><div class="max-w-7xl mx-auto"><div class="flex flex-col items-center mb-10"><div id="typeStatusWrapper" class="mt-2 flex items-center min-h-[40px]"><span id="typeStatus" class="text-3xl font-extrabold px-4 py-1 rounded-full bg-gray-700 text-gray-300 transition duration-300 transform hover:scale-105"></span></div></div><div class="flex justify-center items-center mb-8 p-3 bg-secondary-dark/50 rounded-2xl shadow-xl border border-gray-700/50"><fieldset class="flex space-x-6"><div><input type="radio" id="mode-minify" name="mode" value="minify" checked="checked" class="hidden peer"><label for="mode-minify" class="cursor-pointer px-6 py-2 rounded-full text-base font-bold transition duration-300 border border-gray-600 peer-checked:bg-accent-blue peer-checked:text-white hover:bg-gray-700/70 peer-checked:shadow-lg peer-checked:shadow-accent-blue/50">MiniFY</label></div><div><input type="radio" id="mode-beautify" name="mode" value="beautify" class="hidden peer"><label for="mode-beautify" class="cursor-pointer px-6 py-2 rounded-full text-base font-bold transition duration-300 border border-gray-600 peer-checked:bg-accent-blue peer-checked:text-white hover:bg-gray-700/70 peer-checked:shadow-lg peer-checked:shadow-accent-blue/50">BeautiFY</label></div></fieldset></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-8"><div class="bg-secondary-dark rounded-2xl shadow-2xl p-6 flex flex-col border border-gray-700/50"><textarea id="inputCode" rows="20" class="flex-grow bg-input-bg text-gray-200 font-mono text-sm p-4 rounded-xl border-2 border-gray-700 focus:ring-2 focus:ring-accent-blue focus:border-accent-blue transition duration-300 resize-none shadow-inner" placeholder="Paste your JavaScript or CSS code here..."></textarea></div><div class="bg-secondary-dark rounded-2xl shadow-2xl p-6 flex flex-col relative border border-gray-700/50"><textarea id="outputCode" rows="20" readonly="readonly" class="mt-1 flex-grow bg-input-bg text-gray-200 font-mono text-sm p-4 rounded-xl border-2 border-gray-700 resize-none cursor-default shadow-inner" placeholder="Processed code will appear here."></textarea><button id="copyButton" class="absolute top-6 right-6 bg-accent-blue hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-150 transform hover:scale-[1.02] active:scale-[0.98] shadow-md shadow-accent-blue/30" onclick="copyToClipboard()">Copy Output</button></div></div></div><script>// DOM Elements
         const inputCode = document.getElementById('inputCode');
         const outputCode = document.getElementById('outputCode');
         const modeControls = document.querySelectorAll('input[name="mode"]');
@@ -337,7 +223,7 @@
             if (detectedType === 'empty' || detectedType === 'text') {
                 const isText = detectedType === 'text';
 
-                typeStatus.textContent = isText ? 'Plain Text' : 'Start Typing...';
+                typeStatus.textContent = isText ? 'Plain Text' : '🫥';
 
                 // Neutral gray styling for non-code state
                 typeStatus.className = `text-3xl font-extrabold px-4 py-2 rounded-xl transition duration-300 transform hover:scale-105 bg-gray-700 ${isText ? 'text-white' : 'text-gray-400'} tracking-wider shadow-lg`;
@@ -403,8 +289,4 @@
         inputCode.addEventListener('change', debouncedProcess);
 
         // Re-process when mode is changed
-        modeControls.forEach(control => control.addEventListener('change', processCode));
-
-    </script>
-</body>
-</html>
+        modeControls.forEach(control => control.addEventListener('change', processCode));</script></body></html>
