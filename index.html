@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Minify & Beautify App</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar styling for textareas */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: #1f2937; /* Dark background */
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background-color: #4b5563; /* Gray thumb */
+            border-radius: 20px;
+        }
+
+        /* Modern background effect for the body */
+        body {
+            background-color: #0d1117; /* Even darker primary background */
+            background-image: radial-gradient(#1f2937 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        /* Custom class for a softer, more modern glow on the checked mode button */
+        .peer-checked\:glow {
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5), 0 0 20px rgba(59, 130, 246, 0.3);
+            border-color: #3b82f6;
+        }
+    </style>
+    <script>
+        // Set up Tailwind configuration for custom font and colors
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Consolas', 'Monaco', 'monospace'],
+                    },
+                    colors: {
+                        'primary-dark': '#0d1117', // Updated base color
+                        'secondary-dark': '#161b22', // Updated card color
+                        'accent-blue': '#4c7cff', // Slightly brighter blue
+                        'accent-green': '#2ecc71', // Bright, modern green
+                        'input-bg': '#0f131a', // Darker background for textareas
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-primary-dark text-gray-100 font-sans min-h-screen p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+
+        <!-- NEW HEADER STRUCTURE: Smaller App Title + Prominent Dynamic Type Status -->
+        <div class="flex flex-col items-center mb-10">
+            <!-- The Type Status is now the primary, dynamic header element -->
+            <div id="typeStatusWrapper" class="mt-2 flex items-center min-h-[40px]">
+                <span id="typeStatus" class="text-3xl font-extrabold px-4 py-1 rounded-full bg-gray-700 text-gray-300 transition duration-300 transform hover:scale-105">
+                </span>
+            </div>
+        </div>
+
+        <!-- Controls Section - Centered buttons -->
+        <div class="flex justify-center items-center mb-8 p-3 bg-secondary-dark/50 rounded-2xl shadow-xl border border-gray-700/50">
+
+            <!-- Mode Selection (Minify / Beautify) -->
+            <fieldset class="flex space-x-6">
+                <div>
+                    <input type="radio" id="mode-minify" name="mode" value="minify" checked class="hidden peer">
+                    <label for="mode-minify" class="cursor-pointer px-6 py-2 rounded-full text-base font-bold transition duration-300 border border-gray-600 peer-checked:bg-accent-blue peer-checked:text-white hover:bg-gray-700/70 peer-checked:shadow-lg peer-checked:shadow-accent-blue/50">
+                        MiniFY
+                    </label>
+                </div>
+                <div>
+                    <input type="radio" id="mode-beautify" name="mode" value="beautify" class="hidden peer">
+                    <label for="mode-beautify" class="cursor-pointer px-6 py-2 rounded-full text-base font-bold transition duration-300 border border-gray-600 peer-checked:bg-accent-blue peer-checked:text-white hover:bg-gray-700/70 peer-checked:shadow-lg peer-checked:shadow-accent-blue/50">
+                        BeautiFY
+                    </label>
+                </div>
+            </fieldset>
+
+        </div>
+
+        <!-- Code Areas -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+            <!-- Input Area -->
+            <div class="bg-secondary-dark rounded-2xl shadow-2xl p-6 flex flex-col border border-gray-700/50">
+
+                <textarea id="inputCode" rows="20" class="flex-grow bg-input-bg text-gray-200 font-mono text-sm p-4 rounded-xl border-2 border-gray-700 focus:ring-2 focus:ring-accent-blue focus:border-accent-blue transition duration-300 resize-none shadow-inner" placeholder="Paste your JavaScript or CSS code here..."></textarea>
+            </div>
+
+            <!-- Output Area -->
+            <div class="bg-secondary-dark rounded-2xl shadow-2xl p-6 flex flex-col relative border border-gray-700/50">
+
+                <!-- Label "Transformed Output" has been removed -->
+                <textarea id="outputCode" rows="20" readonly class="mt-1 flex-grow bg-input-bg text-gray-200 font-mono text-sm p-4 rounded-xl border-2 border-gray-700 resize-none cursor-default shadow-inner" placeholder="Processed code will appear here."></textarea>
+
+                <!-- Copy Button - Position adjusted slightly now that the label is gone -->
+                <button id="copyButton" class="absolute top-6 right-6 bg-accent-blue hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-150 transform hover:scale-[1.02] active:scale-[0.98] shadow-md shadow-accent-blue/30" onclick="copyToClipboard()">
+                    Copy Output
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // DOM Elements
+        const inputCode = document.getElementById('inputCode');
+        const outputCode = document.getElementById('outputCode');
+        const modeControls = document.querySelectorAll('input[name="mode"]');
+        const typeStatus = document.getElementById('typeStatus'); // Type status is now in the main header
+        const copyButton = document.getElementById('copyButton');
+
+        // --- Utility Functions ---
+
+        /**
+         * Debounces a function call, ensuring it only runs after a certain delay.
+         * Useful for live input processing to avoid running expensive functions too frequently.
+         */
+        const debounce = (func, delay) => {
+            let timeoutId;
+            return (...args) => {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    func.apply(this, args);
+                }, delay);
+            };
+        };
+
+        /**
+         * Copies the content of the output textarea to the clipboard.
+         */
+        function copyToClipboard() {
+            try {
+                // Select the text field
+                outputCode.select();
+                outputCode.setSelectionRange(0, 99999); // For mobile devices
+
+                // Copy the text inside the text field
+                document.execCommand('copy');
+
+                // Provide visual feedback
+                const originalText = copyButton.textContent;
+                copyButton.textContent = 'Copied!';
+                copyButton.classList.remove('bg-accent-blue', 'hover:bg-blue-600');
+                copyButton.classList.add('bg-accent-green', 'hover:bg-green-600');
+                copyButton.classList.remove('shadow-md', 'shadow-accent-blue/30');
+                copyButton.classList.add('shadow-md', 'shadow-accent-green/30');
+
+                setTimeout(() => {
+                    copyButton.textContent = originalText;
+                    copyButton.classList.remove('bg-accent-green', 'hover:bg-green-600');
+                    copyButton.classList.add('bg-accent-blue', 'hover:bg-blue-600');
+                    copyButton.classList.remove('shadow-md', 'shadow-accent-green/30');
+                    copyButton.classList.add('shadow-md', 'shadow-accent-blue/30');
+                }, 1500);
+
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                // Fallback for environments where execCommand is restricted
+            }
+        }
+
+
+        // --- Code Type Detection ---
+
+        /**
+         * Analyzes code content to guess if it's JS or CSS.
+         * @param {string} code - The input code string.
+         * @returns {string} 'js', 'css', 'text', or 'empty'.
+         */
+        function autoDetectType(code) {
+            // Simple cleanup: remove comments and trim
+            const cleanCode = code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '').trim();
+
+            if (cleanCode.length === 0) return 'empty'; // Indicate empty state
+
+            // Score for CSS: looking for property: value declarations within braces
+            const cssMatch1 = (cleanCode.match(/[a-zA-Z-]+:\s*[^;{}]+/g) || []).length;
+            // Score for CSS: counting braces { }
+            const braceCount = (cleanCode.match(/[{}]/g) || []).length;
+            const cssScore = cssMatch1 + braceCount;
+
+            // Score for JS: looking for strong keywords
+            const jsScore = (cleanCode.match(/(\b(function|const|let|var|return|new|class|import|export|await|async|typeof)\b|=>|;)/g) || []).length; // Added semicolon to JS score
+
+            // Heuristic 1: If strong JS keywords are present, it's likely JS, unless CSS score is high.
+            if (jsScore > 0 && jsScore > cssScore * 0.2) {
+                return 'js';
+            }
+
+            // Heuristic 2: If we have multiple property declarations and braces, it's likely CSS.
+            if (cssMatch1 >= 2 && braceCount >= 1) {
+                return 'css';
+            }
+
+            // NEW HEURISTIC: If the scores are very low, it's likely just plain text.
+            if (jsScore + cssScore < 3) {
+                 // Check if the input contains common structural code characters (braces, parens, semicolons)
+                const structuralMatch = (cleanCode.match(/[\{\}\(\);]/g) || []).length;
+                if (structuralMatch === 0 && jsScore === 0 && cssMatch1 === 0) {
+                    return 'text';
+                }
+            }
+
+            // Default fallback if not empty but inconclusive (Original logic)
+            return 'js';
+        }
+
+
+        // --- Code Transformation Logic (Simplified) ---
+
+        // 1. Minification
+
+        function minifyJS(code) {
+            // Remove multiline comments (/* ... */)
+            let minified = code.replace(/\/\*[\s\S]*?\*\//g, '');
+            // Remove single-line comments (// ...)
+            minified = minified.replace(/\/\/.*/g, '');
+            // Replace newlines and tabs with a single space
+            minified = minified.replace(/[\n\t]/g, ' ');
+            // Remove leading/trailing spaces
+            minified = minified.trim();
+            // Replace multiple spaces with a single space
+            minified = minified.replace(/\s+/g, ' ');
+            // Remove space around structural characters like semicolons, commas, parenthesis, and braces
+            minified = minified.replace(/\s*([;:,=\{\}\(\)])\s*/g, '$1');
+            // Remove space after 'if', 'for', 'while'
+            minified = minified.replace(/(if|for|while|function)\s+\(/g, '$1(');
+            return minified;
+        }
+
+        function minifyCSS(code) {
+            // Remove multiline comments (/* ... */)
+            let minified = code.replace(/\/\*[\s\S]*?\*\//g, '');
+            // Replace newlines and tabs with a single space
+            minified = minified.replace(/[\n\t]/g, ' ');
+            // Remove multiple spaces with a single space
+            minified = minified.replace(/\s+/g, ' ');
+            // Remove spaces around structural characters
+            minified = minified.replace(/\s*([;:{},>+~])\s*/g, '$1');
+            // Remove trailing semicolon from the last declaration
+            minified = minified.replace(/;}/g, '}');
+            // Remove leading/trailing spaces
+            minified = minified.trim();
+            return minified;
+        }
+
+        // 2. Beautification (Simplified Indentation)
+
+        const INDENT_UNIT = '    '; // 4 spaces
+
+        function beautify(code, delimiters) {
+            let beautified = '';
+            let indentLevel = 0;
+            const lines = code.split(/([{}])/).filter(Boolean); // Split by { and } but keep the delimiters
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i].trim();
+
+                if (line === '') continue;
+
+                if (line === delimiters.end) {
+                    indentLevel = Math.max(0, indentLevel - 1);
+                    beautified += '\n' + INDENT_UNIT.repeat(indentLevel) + line;
+                } else {
+                    beautified += '\n' + INDENT_UNIT.repeat(indentLevel) + line;
+                    if (line.endsWith(delimiters.start)) {
+                        indentLevel++;
+                    }
+                }
+            }
+
+            // Cleanup
+            beautified = beautified.replace(/([;{}])\s*([^{}\s])/g, '$1\n$2');
+            beautified = beautified.replace(/{/g, ' {\n');
+            beautified = beautified.replace(/}\s*([a-zA-Z])/g, '}\n$1');
+            beautified = beautified.replace(/}\s*}/g, '}\n}');
+
+            // Re-apply indentation for better structure (very simple implementation)
+            let finalBeautified = '';
+            indentLevel = 0;
+            const cleanedLines = beautified.split('\n').map(l => l.trim()).filter(Boolean);
+
+            for (const line of cleanedLines) {
+                if (line.startsWith(delimiters.end)) {
+                    indentLevel = Math.max(0, indentLevel - 1);
+                    finalBeautified += INDENT_UNIT.repeat(indentLevel) + line + '\n';
+                } else if (line.endsWith(delimiters.start)) {
+                    finalBeautified += INDENT_UNIT.repeat(indentLevel) + line + '\n';
+                    indentLevel++;
+                } else {
+                    finalBeautified += INDENT_UNIT.repeat(indentLevel) + line + '\n';
+                }
+            }
+
+
+            return finalBeautified.trim();
+        }
+
+        function beautifyJS(code) {
+            // A very simple implementation: add newlines after semicolons and braces
+            let interim = code.replace(/([;{}]|})([^{}])/g, '$1\n$2');
+            interim = interim.replace(/([{}])/g, ' $1 '); // Add space around braces
+            return beautify(interim, { start: '{', end: '}' });
+        }
+
+        function beautifyCSS(code) {
+             // Add newlines after braces and semicolons
+             let interim = code.replace(/([;{}])/g, '$1\n');
+             return beautify(interim, { start: '{', end: '}' });
+        }
+
+
+        // --- Main Controller ---
+
+        /**
+         * Reads controls and processes the input code.
+         */
+        function processCode() {
+            const code = inputCode.value;
+            let currentMode;
+            let result = '';
+
+            // 1. Auto-Detect Type
+            const detectedType = autoDetectType(code);
+
+            // --- HANDLE NON-CODE STATES (EMPTY and TEXT) ---
+            if (detectedType === 'empty' || detectedType === 'text') {
+                const isText = detectedType === 'text';
+
+                typeStatus.textContent = isText ? 'Plain Text' : 'Start Typing...';
+
+                // Neutral gray styling for non-code state
+                typeStatus.className = `text-3xl font-extrabold px-4 py-2 rounded-xl transition duration-300 transform hover:scale-105 bg-gray-700 ${isText ? 'text-white' : 'text-gray-400'} tracking-wider shadow-lg`;
+
+                outputCode.value = isText
+                    ? "Input detected as Plain Text. This tool only processes JavaScript or CSS code. Please enter valid code in the left box."
+                    : ''; // Clear output if empty
+                return; // Stop processing further
+            }
+            // --- END NON-CODE STATE HANDLING ---
+
+            // Continue with original logic if JS or CSS
+
+            // Update the status display with style, now the prominent title element
+            const typeDisplayName = detectedType === 'js' ? 'JavaScript' : 'CSS';
+            // Adjusted colors for JS and CSS status tags for better visibility
+            const bgColor = detectedType === 'js' ? 'bg-yellow-800/50 border border-yellow-700' : 'bg-green-800/50 border border-green-700';
+            const textColor = detectedType === 'js' ? 'text-yellow-300' : 'text-accent-green';
+
+            typeStatus.textContent = `${typeDisplayName}`; // Updated text for the new prominent title
+            // Applying H1-like classes for prominence
+            typeStatus.className = `text-3xl font-extrabold px-4 py-2 rounded-xl transition duration-300 transform hover:scale-105 ${bgColor} ${textColor} tracking-wider shadow-lg`;
+
+
+            // 2. Read selected Mode
+            const modeInput = document.querySelector('input[name="mode"]:checked');
+            currentMode = modeInput ? modeInput.value : 'minify';
+
+            // Set currentType to the detected type
+            const currentType = detectedType;
+
+
+            try {
+                if (currentMode === 'minify') {
+                    if (currentType === 'js') {
+                        result = minifyJS(code);
+                    } else if (currentType === 'css') {
+                        result = minifyCSS(code);
+                    }
+                } else if (currentMode === 'beautify') {
+                    if (currentType === 'js') {
+                        result = beautifyJS(code);
+                    } else if (currentType === 'css') {
+                        result = beautifyCSS(code);
+                    }
+                }
+            } catch (e) {
+                // IMPROVEMENT: Provide a more generic and helpful error message for transformation issues.
+                result = `Error processing input as ${typeDisplayName} (${currentMode} mode). Please check if your code is valid ${typeDisplayName}.`;
+                console.error(`Transformation Error (${currentType}/${currentMode}): `, e);
+            }
+
+            outputCode.value = result;
+        }
+
+        // Apply a debounce to the input handler for efficient "live process"
+        const debouncedProcess = debounce(processCode, 300);
+
+        // --- Event Listeners ---
+
+        // Live processing on input change (triggers auto-detect)
+        inputCode.addEventListener('keyup', debouncedProcess);
+        inputCode.addEventListener('change', debouncedProcess);
+
+        // Re-process when mode is changed
+        modeControls.forEach(control => control.addEventListener('change', processCode));
+
+    </script>
+</body>
+</html>
