@@ -1006,23 +1006,31 @@ generateToken(<span class="s">'your-DNS_TOKEN_SECRET'</span>, <span class="s">'/
 <span class="k">wrangler</span> secret put DNS_CACHE_SECRET</pre>
       </div>
       <div>
-        <h3 style="margin-bottom:16px;">Verify Deployment</h3>
-<pre><span class="c"># Test DoH resolution</span>
-<span class="k">curl</span> <span class="s">"https://your.workers.dev/dns-query\
-?dns=example.com&type=A"</span> \
-  -H <span class="s">"Accept: application/dns-json"</span>
+        <h3 style="margin-bottom:16px;">Demo — Live Requests</h3>
+<pre><span class="c"># DNS queries return binary wire format.</span>
+<span class="c"># Use --output - to pipe, or /test for JSON.</span>
 
-<span class="c"># Health check (JSON)</span>
-<span class="k">curl</span> <span class="s">"https://your.workers.dev/"</span> \
-  -H <span class="s">"Accept: application/json"</span>
+<span class="c"># Resolve example.com A — binary output</span>
+<span class="k">curl</span> --output - \
+  <span class="s">"https://x.xoox.workers.dev/dns-query/abir\
+?dns=AAABAAABAAAAAAAAB2V4YW1wbGUDY29tAAABAAE"</span>
 
-<span class="c"># Test all upstreams</span>
-<span class="k">curl</span> <span class="s">"https://your.workers.dev/\
-test?dns=cloudflare.com&type=A"</span>
+<span class="c"># Inspect raw bytes</span>
+<span class="k">curl</span> --output - <span class="s">"https://x.xoox.workers.dev/dns-query/abir\
+?dns=AAABAAABAAAAAAAAB2V4YW1wbGUDY29tAAABAAE"</span> | xxd | head
+<span class="c"># 00000000: 0000 8180 0001 0001 ...  .............exa</span>
+<span class="c"># 00000020: 0100 0100 000e 1000 045d b8d8 22   ]..&quot;</span>
+
+<span class="c"># /test — human-readable JSON</span>
+<span class="k">curl</span> <span class="s">"https://x.xoox.workers.dev/test/abir\
+?dns=cloudflare.com&amp;type=A"</span>
+<span class="c"># → { "allOk": true, "upstreams": [...scores, latency] }</span>
+
+<span class="c"># Health dashboard</span>
+<span class="k">curl</span> <span class="s">"https://x.xoox.workers.dev/admin/abir"</span>
 
 <span class="c"># AI brain state</span>
-<span class="k">curl</span> <span class="s">"https://your.workers.dev/api/ai"</span> \
-  <span class="c"># token is in the URL path, not a header</span></pre>
+<span class="k">curl</span> <span class="s">"https://x.xoox.workers.dev/api/ai/abir"</span></pre>
       </div>
     </div>
 
