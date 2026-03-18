@@ -421,6 +421,7 @@ footer a{color:var(--accent);text-decoration:none;}
     <a class="nav-link" href="#architecture">Architecture</a>
     <a class="nav-link" href="#ai-brain">AI Brain</a>
     <a class="nav-link" href="#security">Security</a>
+    <a class="nav-link" href="#auth">Auth</a>
     <a class="nav-link" href="#api">API</a>
     <a class="nav-link" href="#deploy">Deploy</a>
     <a class="nav-link" href="#about">About</a>
@@ -783,7 +784,88 @@ footer a{color:var(--accent);text-decoration:none;}
 
 <div class="divider"></div>
 
-<!-- API REFERENCE -->
+<!-- AUTH -->
+<section id="auth">
+  <div class="container">
+    <div class="section-label">Authentication</div>
+    <h2>Append to the path. That's it.</h2>
+    <p>Append your token or master key as the <strong style="color:var(--text);">last segment of the URL</strong>. Both work identically — same position, same format, same everything.</p>
+
+    <div class="arch" style="margin-top:28px;margin-bottom:32px;">
+<pre class="arch-diagram"><span class="hl">https://your-worker.workers.dev/</span><span class="hl2">dns-query</span><span class="hl">/</span><span class="hl4">&lt;token-or-masterkey&gt;</span>
+<span class="hl">https://your-worker.workers.dev/</span><span class="hl2">admin</span><span class="hl">/</span><span class="hl4">&lt;token-or-masterkey&gt;</span>
+<span class="hl">https://your-worker.workers.dev/</span><span class="hl2">api/intelligence</span><span class="hl">/</span><span class="hl4">&lt;token-or-masterkey&gt;</span>
+<span class="hl">https://your-worker.workers.dev/</span><span class="hl2">/</span><span class="hl4">&lt;token-or-masterkey&gt;</span>    ← same as /dns-query</pre>
+    </div>
+
+    <div class="card-grid card-grid-2">
+      <div class="card">
+        <h3 style="color:var(--accent);">Generated Token <span style="font-size:12px;color:var(--accent3);font-family:'Space Mono',monospace;">— normal use</span></h3>
+        <p style="font-size:13px;">Set <code>DNS_TOKEN_SECRET</code>. Generate time-limited tokens via the <code>/admin</code> dashboard UI or the API. Tokens are HMAC-SHA256 signed, valid <strong style="color:var(--text);">±2 hours</strong>, and path-scoped.</p>
+<pre style="font-size:11px;margin-top:12px;"><span class="c"># Generate a token (using master key to auth)</span>
+curl <span class="s">"https://…/api/token/&lt;masterkey&gt;?path=/admin"</span>
+<span class="c"># → { "fullPath": "/admin/67f1a2b3&lt;64-hex&gt;" }</span>
+
+<span class="c"># Then use it exactly like a master key</span>
+curl <span class="s">"https://…/admin/67f1a2b3&lt;64-hex-chars&gt;"</span>
+curl <span class="s">"https://…/dns-query/67f1a2b3&lt;64-hex-chars&gt;?dns=…"</span></pre>
+        <div style="margin-top:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;">
+          <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:8px;letter-spacing:0.1em;">TOKEN FORMAT — 72 HEX CHARS</div>
+          <div style="display:flex;gap:0;font-family:'Space Mono',monospace;font-size:12px;">
+            <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);padding:6px 10px;border-radius:4px 0 0 4px;">
+              <div style="color:var(--accent4);font-size:10px;margin-bottom:2px;">TIMESTAMP</div>
+              <div style="color:var(--text);">8 chars</div>
+              <div style="color:var(--muted);font-size:10px;">hex epoch</div>
+            </div>
+            <div style="background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);border-left:none;padding:6px 10px;border-radius:0 4px 4px 0;flex:1;">
+              <div style="color:var(--accent);font-size:10px;margin-bottom:2px;">HMAC-SHA256 SIGNATURE</div>
+              <div style="color:var(--text);">64 chars</div>
+              <div style="color:var(--muted);font-size:10px;">signs: timestamp + path</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--accent4);">Master Key <span style="font-size:12px;color:var(--danger);font-family:'Space Mono',monospace;">— fallback / emergency</span></h3>
+        <p style="font-size:13px;">Set <code>DNS_MASTER_KEY</code> to any string you choose. Use it the same way as a generated token — just append to the path. <strong style="color:var(--text);">Never expires.</strong> Reach for it when a generated token has expired or isn't working.</p>
+<pre style="font-size:11px;margin-top:12px;"><span class="k">wrangler</span> secret put DNS_MASTER_KEY
+<span class="c"># → enter: mysecretmasterkey</span>
+
+<span class="c"># Identical usage to a generated token</span>
+curl <span class="s">"https://…/admin/mysecretmasterkey"</span>
+curl <span class="s">"https://…/dns-query/mysecretmasterkey?dns=…"</span>
+curl <span class="s">"https://…/api/intelligence/mysecretmasterkey"</span></pre>
+        <div style="margin-top:12px;background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.15);border-radius:6px;padding:10px;font-size:12px;color:var(--muted);">
+          ⚠️ Never expires — keep it secret. Rotate by updating the Wrangler secret and redeploying.
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:32px;">
+      <h3 style="margin-bottom:16px;">Generate a token locally (Node.js)</h3>
+<pre style="font-size:12px;"><span class="k">async function</span> <span class="n">generateToken</span>(secret, path) {
+  <span class="k">const</span> ts = (Date.now()/1000|0).toString(<span class="n">16</span>).padStart(<span class="n">8</span>, <span class="s">'0'</span>);
+  <span class="k">const</span> key = <span class="k">await</span> crypto.subtle.importKey(
+    <span class="s">'raw'</span>, <span class="k">new</span> TextEncoder().encode(secret),
+    { name: <span class="s">'HMAC'</span>, hash: <span class="s">'SHA-256'</span> }, <span class="k">false</span>, [<span class="s">'sign'</span>]
+  );
+  <span class="k">const</span> sig = <span class="k">await</span> crypto.subtle.sign(<span class="s">'HMAC'</span>, key, <span class="k">new</span> TextEncoder().encode(ts + path));
+  <span class="k">const</span> token = ts + [...<span class="k">new</span> Uint8Array(sig)].map(b => b.toString(<span class="n">16</span>).padStart(<span class="n">2</span>, <span class="s">'0'</span>)).join(<span class="s">''</span>);
+  console.log(<span class="s">`https://your-worker.workers.dev</span>${path}<span class="s">/</span>${token}<span class="s">`</span>);
+}
+
+generateToken(<span class="s">'your-DNS_TOKEN_SECRET'</span>, <span class="s">'/admin'</span>);
+generateToken(<span class="s">'your-DNS_TOKEN_SECRET'</span>, <span class="s">'/dns-query'</span>);
+generateToken(<span class="s">'your-DNS_TOKEN_SECRET'</span>, <span class="s">'/api'</span>);  <span class="c">// covers all /api/* routes</span></pre>
+    </div>
+
+    <div style="margin-top:20px;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:16px;font-size:13px;color:var(--muted);">
+      <strong style="color:var(--accent3);">No secrets set?</strong> The worker runs in open-access mode — no auth required on any endpoint.
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
 <section id="api">
   <div class="container">
     <div class="section-label">API Reference</div>
@@ -793,9 +875,10 @@ footer a{color:var(--accent);text-decoration:none;}
     <div class="routes-section" style="margin-top:32px;">
       <div class="route-group">
         <h4>Core DNS</h4>
-        <div class="route-item"><span class="route-method method-both">GET/POST</span><span class="route-path">/dns-query</span><span class="route-desc">DoH resolver — RFC 8484</span></div>
-        <div class="route-item"><span class="route-method method-get">GET</span><span class="route-path">/</span><span class="route-desc">Health dashboard — JSON or HTML with 100+ live metrics</span></div>
-        <div class="route-item"><span class="route-method method-get">GET</span><span class="route-path">/test</span><span class="route-desc">Test query against all upstreams simultaneously</span></div>
+        <div class="route-item"><span class="route-method method-both">GET/POST</span><span class="route-path">//&lt;token&gt;</span><span class="route-desc">DoH resolver — <code>/</code> and <code>/dns-query</code> are identical</span></div>
+        <div class="route-item"><span class="route-method method-both">GET/POST</span><span class="route-path">/dns-query/&lt;token&gt;</span><span class="route-desc">DoH resolver — RFC 8484 GET &amp; POST</span></div>
+        <div class="route-item"><span class="route-method method-get">GET</span><span class="route-path">/admin/&lt;token&gt;</span><span class="route-desc">Health dashboard — JSON or HTML with 100+ live metrics</span></div>
+        <div class="route-item"><span class="route-method method-get">GET</span><span class="route-path">/test/&lt;token&gt;</span><span class="route-desc">Test query against all upstreams simultaneously</span></div>
       </div>
       <div class="route-group">
         <h4>AI & Brain</h4>
@@ -926,7 +1009,7 @@ footer a{color:var(--accent);text-decoration:none;}
         <h3 style="margin-bottom:16px;">Verify Deployment</h3>
 <pre><span class="c"># Test DoH resolution</span>
 <span class="k">curl</span> <span class="s">"https://your.workers.dev/dns-query\
-?name=example.com&type=A"</span> \
+?dns=example.com&type=A"</span> \
   -H <span class="s">"Accept: application/dns-json"</span>
 
 <span class="c"># Health check (JSON)</span>
@@ -935,11 +1018,11 @@ footer a{color:var(--accent);text-decoration:none;}
 
 <span class="c"># Test all upstreams</span>
 <span class="k">curl</span> <span class="s">"https://your.workers.dev/\
-test?name=cloudflare.com&type=A"</span>
+test?dns=cloudflare.com&type=A"</span>
 
 <span class="c"># AI brain state</span>
 <span class="k">curl</span> <span class="s">"https://your.workers.dev/api/ai"</span> \
-  -H <span class="s">"Authorization: Bearer &lt;token&gt;"</span></pre>
+  <span class="c"># token is in the URL path, not a header</span></pre>
       </div>
     </div>
 
