@@ -45,9 +45,10 @@
       <div class="ftab-top"><span class="ftab-num">02</span><span class="ftab-badge f2-badge">isnet ai</span></div>
       <div class="ftab-name">No Background</div>
       <div class="ftab-chain">
-        <span class="chip">ISNet Remove BG</span><span class="arr">→</span>
+        <span class="chip">ISNet AI Remove</span><span class="arr">→</span>
+        <span class="chip">Refine Edges</span><span class="arr">→</span>
         <span class="chip">Upscale</span><span class="arr">→</span>
-        <span class="chip">WebP</span>
+        <span class="chip">WebP / PNG</span>
       </div>
     </button>
     <button class="ftab f3" onclick="selectFlow(3)">
@@ -135,6 +136,15 @@
     </div>
 
     <!-- Flow 2 only -->
+    <div class="sg sg-hidden" id="bgModelGroup">
+      <label>AI Model</label>
+      <select id="bgModel">
+        <option value="isnet">ISNet General (best quality)</option>
+        <option value="isnet_fp16">ISNet FP16 (faster, ~same quality)</option>
+        <option value="isnet_quint8">ISNet Quint8 (fastest, smaller download)</option>
+      </select>
+      <div class="sg-hint">First run downloads model · cached in browser forever</div>
+    </div>
     <div class="sg sg-hidden" id="bgSensGroup">
       <label>Alpha Threshold <span class="rval" id="bgsv">80</span></label>
       <div class="sg-range">
@@ -150,6 +160,14 @@
           oninput="document.getElementById('bffv').textContent=this.value">
       </div>
       <div class="sg-hint">0 = crisp · higher = softer edge</div>
+    </div>
+<div class="sg sg-hidden" id="bgOutputGroup">
+      <label>Output Format</label>
+      <select id="bgOutputFormat">
+        <option value="webp">WebP (smaller file)</option>
+        <option value="png">PNG (lossless transparency)</option>
+      </select>
+      <div class="sg-hint">PNG preserves full alpha · WebP is smaller for Shopify</div>
     </div>
 
     <!-- Flow 3 — Unified Smart Resize -->
@@ -210,7 +228,7 @@
       <label>Extension / BG Fill</label>
       <select id="resizeFill" onchange="toggleFillColor()">
         <option value="extend">Edge pixels (seamless)</option>
-        <option value="blur">Blurred Source (cinematic)</option>
+        <option value="ai-extend" selected>🤖 AI Fill — LaMa ONNX (smart)</option>
         <option value="white">White</option>
         <option value="black">Black</option>
         <option value="transparent">Transparent (PNG)</option>
@@ -266,6 +284,24 @@
         <strong>Exact match on an axis</strong> → passthrough for that axis.
         Switch to <strong>Proportional Fit</strong> to never crop — only letterbox/pillarbox.
         Set <strong>Fill → Transparent</strong> to keep extended areas as alpha (saves as PNG).
+        <strong>AI Fill</strong> uses <em>LaMa ONNX</em> (Carve/LaMa-ONNX, Apache 2.0) — a 51M-parameter
+        inpainting model running 100% in-browser via <em>onnxruntime-web</em> (WebGPU → WASM fallback).
+        First run downloads ~208 MB and caches it in IndexedDB forever.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Flow 2 Info Banner ── -->
+  <div class="extend-info f2-info sg-hidden" id="bgInfo">
+    <div class="ei-icon">🧠</div>
+    <div class="ei-text">
+      <div class="ei-title" style="color:var(--a3)">ISNet Background Removal — ONNX Runtime, 100% Local</div>
+      <div class="ei-desc">
+        Powered by <strong>@imgly/background-removal</strong> running <em>ISNet-General-Use</em> in-browser via ONNX Runtime.
+        <strong>First run</strong> downloads ~45 MB model weights (cached forever after).
+        A live <strong>progress bar</strong> shows per-file download status.
+        Choose <strong>ISNet FP16</strong> for faster inference or <strong>Quint8</strong> for the smallest download.
+        Output as <em>WebP</em> for Shopify or <em>PNG</em> to keep full lossless transparency.
       </div>
     </div>
   </div>
