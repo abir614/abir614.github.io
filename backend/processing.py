@@ -59,7 +59,13 @@ def run_flow2(img: Image.Image, cfg: dict) -> dict:
     orig_size = _img_size(img)
 
     # 1. Background removal (lazy import so startup is fast when not used)
-    from rembg import remove, new_session
+    try:
+        from rembg import remove, new_session
+    except ImportError as e:
+        raise RuntimeError(
+            f"rembg is not installed or has missing dependencies ({e}). "
+            "Run: pip install packaging rembg[gpu]"
+        ) from e
     session = new_session(cfg["bg_model"])
     img = remove(img, session=session)                    # returns RGBA PNG
     img = img.convert("RGBA")
