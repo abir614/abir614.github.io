@@ -1,18 +1,5 @@
-# ─────────────────────────────────────────────────────────────
-# Stage 1 — Builder
-# Installs Python dependencies + pre-downloads ISNet model
-# ─────────────────────────────────────────────────────────────
 FROM python:3.11-slim AS builder
-
-# Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
-
-# System dependencies required for:
-# - opencv-python-headless
-# - scipy
-# - numpy
-# - onnxruntime
-# - rembg
 RUN apt-get update && apt-get install -y \
     build-essential \
     gcc \
@@ -24,10 +11,8 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Upgrade pip first
 RUN pip install --upgrade pip setuptools wheel
 
-# Install Python dependencies
 COPY backend/requirements.txt .
 
 RUN pip install \
@@ -35,11 +20,9 @@ RUN pip install \
     --prefix=/install \
     -r requirements.txt
 
-# Copy backend files
 COPY backend/main.py .
 COPY backend/processing.py .
 
-# Pre-download rembg ISNet model
 ENV U2NET_HOME=/app/.u2net
 
 RUN PYTHONPATH=/install/lib/python3.11/site-packages \
@@ -56,7 +39,6 @@ FROM python:3.11-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Runtime libraries only
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libgomp1 \
@@ -65,22 +47,17 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy installed packages from builder
 COPY --from=builder /install /usr/local
 
-# Copy cached rembg models
 COPY --from=builder /app/.u2net /app/.u2net
 
-# Backend
 COPY backend/main.py .
 COPY backend/processing.py .
 
-# Frontend static files
 COPY index.html ./static/index.html
 COPY style.css ./static/style.css
 COPY script.js ./static/script.js
 
-# Runtime optimizations
 ENV U2NET_HOME=/app/.u2net \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -89,5 +66,4 @@ ENV U2NET_HOME=/app/.u2net \
 
 EXPOSE 7860
 
-# Single worker recommended for rembg/onnxruntime
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "4"]
