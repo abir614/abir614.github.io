@@ -443,42 +443,49 @@ def _blend_seam(arr: np.ndarray, ox: int, oy: int, sw: int, sh: int, W: int, H: 
 def fill_lama(src: Image.Image, ox: int, oy: int, W: int, H: int, blend_radius: int) -> Image.Image:
     """
     Use LaMa inpainting for seamless extension.
-    Falls back to edge-pixel fill if lama-cleaner is not installed.
-
-    To enable: pip install iopaint
+    Falls back to edge-pixel fill if iopaint is not installed.
     """
     try:
+        import torch
         from iopaint.model_manager import ModelManager
-        from iopaint.schema import InpaintRequest, HDStrategy, LDMSampler
-    except ImportError:
-        # Graceful fallback
+        from iopaint.schema import InpaintRequest, HDStrategy
+    except ImportError as e:
+        print(f"[WARN] iopaint not available ({e}), falling back to edge fill")
         return fill_seamless_pil(src, ox, oy, W, H, blend_radius)
 
     sw, sh = src.width, src.height
-    # Build extended canvas with edge fill first (context for LaMa)
-    base = fill_seamless_pil(src, ox, oy, W, H, blend_radius)
-    base_rgb = base.convert("RGB")
 
-    # Build mask: white = extension zones (areas to inpaint), black = known
-    mask = Image.new("L", (W, H), 255)
-    mask.paste(Image.new("L", (sw, sh), 0), (ox, oy))
+    # Build extended canvas with edge fill first — gives LaMa surrounding context
+    base = fill_seamless_pil(src, ox, oy, W, H, blend_radius)
+
+    # iopaint expects numpy RGB [H, W, C] uint8
+    base_np = np.array(base.convert("RGB"), dtype=np.uint8)
+
+    # Mask: 255 = region to inpaint (extension zones), 0 = keep (original src)
+    mask_np = np.full((H, W, 1), 255, dtype=np.uint8)
+    mask_np[oy:oy+sh, ox:ox+sw, 0] = 0
 
     try:
-        model = ModelManager(name="lama", device="cpu")
-        result = model(
-            base_rgb,
-            mask,
-            InpaintRequest(hd_strategy=HDStrategy.ORIGINAL)
-        )
-        result_rgba = result.convert("RGBA")
-        # Re-stamp original src so it isn't altered
-        result_rgba.paste(src, (ox, oy))
-        # Seam blend
-        arr = np.array(result_rgba, dtype=np.float32)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = ModelManager(name="lama", device=device)
+        # __call__ returns BGR numpy [H, W, C]
+        result_bgr = model(base_np, mask_np, InpaintRequest(hd_strategy=HDStrategy.ORIGINAL))
+        # Convert BGR → RGB → PIL
+        result_rgb = cv2.cvtColor(result_bgr, cv2.COLOR_BGR2RGB)
+        result_pil = Image.fromarray(result_rgb).convert("RGBA")
+
+        # Re-stamp original src pixels so LaMa doesn't alter the known region
+        result_pil.paste(src.convert("RGBA"), (ox, oy))
+
+        # Light seam blend at the boundary
+        arr = np.array(result_pil, dtype=np.float32)
         _blend_seam(arr, ox, oy, sw, sh, W, H, max(8, blend_radius))
         _blend_seam(arr, ox, oy, sw, sh, W, H, blend_radius)
-        _blend_seam(arr, ox, oy, sw, sh, W, H, max(4, blend_radius // 2))
-        return Image.fromarray(arr.astype(np.uint8), "RGBA")
+
+        out = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGBA")
+        has_alpha = src.mode == "RGBA"
+        return out if has_alpha else out.convert("RGB")
+
     except Exception as e:
         print(f"[WARN] LaMa failed ({e}), falling back to edge fill")
         return fill_seamless_pil(src, ox, oy, W, H, blend_radius)
