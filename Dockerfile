@@ -3,8 +3,7 @@
 # Full Alpine + build tools. Compiles wheels, downloads model.
 # Nothing from this stage leaks into the final image.
 # ─────────────────────────────────────────────────────────────
-FROM python:3.11-alpine AS builder
-
+FROM python:3.11-slim AS builder
 # Build deps for opencv-headless and scipy native extensions
 RUN apk add --no-cache \
     gcc g++ musl-dev \
@@ -36,7 +35,7 @@ print('ISNet model cached.')"
 # Only: Alpine base, runtime .so libs, Python, our code.
 # No gcc, no apk cache, no pip, no build headers.
 # ─────────────────────────────────────────────────────────────
-FROM python:3.11-alpine
+FROM python:3.11-slim
 
 # Only the shared libraries that opencv / rembg / scipy need at runtime
 RUN apk add --no-cache \
@@ -67,4 +66,4 @@ ENV U2NET_HOME=/app/.u2net \
 
 EXPOSE 7860
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "4"]
