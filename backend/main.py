@@ -64,7 +64,7 @@ async def process_image(
     resize_focus:      str        = Form("smart"),
     resize_align:      str        = Form("center"),
     resize_blend:      int        = Form(40),
-    resize_fill:       str        = Form("extend"),
+    resize_fill:       str        = Form("ai-extend"),
     fill_color:        str        = Form("#ffffff"),
 
     # Rename
@@ -174,7 +174,7 @@ async def process_batch(
     resize_focus:      str        = Form("smart"),
     resize_align:      str        = Form("center"),
     resize_blend:      int        = Form(40),
-    resize_fill:       str        = Form("extend"),
+    resize_fill:       str        = Form("ai-extend"),
     fill_color:        str        = Form("#ffffff"),
 
     rename_pattern:    str        = Form(""),
