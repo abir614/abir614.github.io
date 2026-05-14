@@ -352,84 +352,88 @@ def fill_seamless_pil(src: Image.Image, ox: int, oy: int, W: int, H: int, blend_
     """
     Place src at (ox,oy) on a W×H canvas.
     Fill extension zones by sampling nearby edge pixels of src (weighted average).
-    Then apply seam blending.
+    Fully vectorised with NumPy — no Python pixel loops.
     """
     sw, sh = src.width, src.height
     has_alpha = src.mode == "RGBA"
-    channels = 4 if has_alpha else 3
     src_arr = np.array(src.convert("RGBA") if not has_alpha else src, dtype=np.float32)
 
-    out_arr = np.zeros((H, W, 4), dtype=np.float32)
     STRIP = max(6, min(blend_radius, int(min(sw, sh) * 0.18)))
+    weights = np.array([((STRIP - k) / STRIP) ** 1.5 for k in range(STRIP)], dtype=np.float32)
+    total_w = float(weights.sum())
 
-    for y in range(H):
-        for x in range(W):
-            rx, ry = x - ox, y - oy
-            in_x = 0 <= rx < sw
-            in_y = 0 <= ry < sh
+    # Coordinate grids for full output canvas
+    ys, xs = np.mgrid[0:H, 0:W]
+    rx = xs - ox
+    ry = ys - oy
+    in_x = (rx >= 0) & (rx < sw)
+    in_y = (ry >= 0) & (ry < sh)
+    inside = in_x & in_y
 
-            if in_x and in_y:
-                out_arr[y, x] = src_arr[ry, rx]
-                continue
+    # Clamped source coords (used for interior copy and per-axis clamping)
+    sx_clip = np.clip(rx, 0, sw - 1).astype(np.int32)
+    sy_clip = np.clip(ry, 0, sh - 1).astype(np.int32)
 
-            # Weighted average of STRIP edge samples
-            r = g = b = a = wt = 0.0
-            for k in range(STRIP):
-                w = ((STRIP - k) / STRIP) ** 1.5
-                if not in_x and not in_y:
-                    sx = min(k, sw - 1) if rx < 0 else max(sw - 1 - k, 0)
-                    sy = min(k, sh - 1) if ry < 0 else max(sh - 1 - k, 0)
-                elif not in_x:
-                    sx = min(k, sw - 1) if rx < 0 else max(sw - 1 - k, 0)
-                    sy = max(0, min(sh - 1, ry))
-                else:
-                    sy = min(k, sh - 1) if ry < 0 else max(sh - 1 - k, 0)
-                    sx = max(0, min(sw - 1, rx))
-                p = src_arr[sy, sx]
-                r += p[0] * w; g += p[1] * w; b += p[2] * w; a += (p[3] / 255.0) * w
-                wt += w
+    out_arr = np.zeros((H, W, 4), dtype=np.float32)
 
-            if wt > 0:
-                r /= wt; g /= wt; b /= wt; a /= wt
+    # Interior: direct copy
+    out_arr[inside] = src_arr[sy_clip[inside], sx_clip[inside]]
 
-            out_arr[y, x] = [
-                np.clip(r, 0, 255),
-                np.clip(g, 0, 255),
-                np.clip(b, 0, 255),
-                np.clip(a * 255, 0, 255),
-            ]
+    # Exterior: weighted strip average — one vectorised pass per k
+    exterior = ~inside
+    if exterior.any():
+        accum = np.zeros((H, W, 4), dtype=np.float32)
+        for k in range(STRIP):
+            w = weights[k]
+            sx_k = np.where(rx < 0, np.minimum(k, sw - 1), np.maximum(sw - 1 - k, 0)).astype(np.int32)
+            sy_k = np.where(ry < 0, np.minimum(k, sh - 1), np.maximum(sh - 1 - k, 0)).astype(np.int32)
+            # Clamp the in-bounds axis to its natural position
+            sx_k = np.where(in_x, sx_clip, sx_k)
+            sy_k = np.where(in_y, sy_clip, sy_k)
+            accum += src_arr[sy_k, sx_k] * w
+        accum /= total_w
+        out_arr[exterior] = accum[exterior]
 
     if blend_radius > 0:
         _blend_seam(out_arr, ox, oy, sw, sh, W, H, blend_radius)
 
-    out = Image.fromarray(out_arr.astype(np.uint8), "RGBA")
+    out = Image.fromarray(np.clip(out_arr, 0, 255).astype(np.uint8), "RGBA")
     return out if has_alpha else out.convert("RGB")
 
 
 def _blend_seam(arr: np.ndarray, ox: int, oy: int, sw: int, sh: int, W: int, H: int, radius: int):
-    """Smooth the seam between placed image and fill zone. Mirrors blendSeam()."""
-    for y in range(oy, min(oy + sh, H)):
-        for x in range(ox, min(ox + sw, W)):
-            dx = min(x - ox, ox + sw - 1 - x)
-            dy = min(y - oy, oy + sh - 1 - y)
-            d = min(dx, dy)
-            if d >= radius:
-                continue
-            t = d / radius
-            smooth = t * t * (3 - 2 * t)
+    """Smooth the seam between placed image and fill zone. Vectorised."""
+    x1, y1 = ox, oy
+    x2, y2 = min(ox + sw, W), min(oy + sh, H)
+    if x1 >= x2 or y1 >= y2:
+        return
 
-            if dx <= dy:
-                nx = ox - 1 if x < ox + sw // 2 else ox + sw
-                ny = y
-            else:
-                ny = oy - 1 if y < oy + sh // 2 else oy + sh
-                nx = x
+    ys, xs = np.mgrid[y1:y2, x1:x2]
+    dx = np.minimum(xs - ox, ox + sw - 1 - xs)
+    dy = np.minimum(ys - oy, oy + sh - 1 - ys)
+    d  = np.minimum(dx, dy)
 
-            nx = max(0, min(W - 1, nx))
-            ny = max(0, min(H - 1, ny))
+    blend_mask = d < radius
+    if not blend_mask.any():
+        return
 
-            for c in range(3):
-                arr[y, x, c] = arr[ny, nx, c] * (1 - smooth) + arr[y, x, c] * smooth
+    t = np.where(blend_mask, d / radius, 1.0)
+    smooth = t * t * (3 - 2 * t)          # smoothstep
+
+    # Neighbour coordinates (the fill-zone pixel on the other side of the seam)
+    nx = np.where(dx <= dy,
+                  np.where(xs < ox + sw // 2, ox - 1, ox + sw),
+                  xs)
+    ny = np.where(dx > dy,
+                  np.where(ys < oy + sh // 2, oy - 1, oy + sh),
+                  ys)
+    nx = np.clip(nx, 0, W - 1)
+    ny = np.clip(ny, 0, H - 1)
+
+    sm = smooth[:, :, np.newaxis]          # (h, w, 1) for broadcast
+    neighbour = arr[ny, nx]                # (h, w, 4)
+    blended   = neighbour * (1 - sm) + arr[y1:y2, x1:x2] * sm
+    arr[y1:y2, x1:x2] = np.where(blend_mask[:, :, np.newaxis], blended, arr[y1:y2, x1:x2])
 
 
 # ═══════════════════════════════════════
@@ -504,12 +508,11 @@ def pixel_saliency_center(img: Image.Image) -> tuple:
     gy = cv2.Sobel(lum, cv2.CV_32F, 0, 1, ksize=3)
     edges = np.sqrt(gx**2 + gy**2)
 
-    # Local contrast (std in 3×3)
-    local_c = np.zeros_like(lum)
-    for y in range(1, TH - 1):
-        for x in range(1, TW - 1):
-            patch = lum[y-1:y+2, x-1:x+2]
-            local_c[y, x] = patch.std()
+    # Local contrast (std in 3×3) — vectorised via strided view
+    from numpy.lib.stride_tricks import sliding_window_view
+    windows  = sliding_window_view(lum, (3, 3))          # (TH-2, TW-2, 3, 3)
+    local_c  = np.zeros_like(lum)
+    local_c[1:TH-1, 1:TW-1] = windows.reshape(windows.shape[0], windows.shape[1], -1).std(axis=-1)
 
     def norm(a):
         mx = a.max()
