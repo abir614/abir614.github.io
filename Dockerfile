@@ -1,69 +1,93 @@
 # ─────────────────────────────────────────────────────────────
-# Stage 1 — builder
-# Full Alpine + build tools. Compiles wheels, downloads model.
-# Nothing from this stage leaks into the final image.
+# Stage 1 — Builder
+# Installs Python dependencies + pre-downloads ISNet model
 # ─────────────────────────────────────────────────────────────
 FROM python:3.11-slim AS builder
-# Build deps for opencv-headless and scipy native extensions
-RUN apk add --no-cache \
-    gcc g++ musl-dev \
-    libffi-dev \
-    openblas-dev \
-    libstdc++ \
-    linux-headers
+
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# System dependencies required for:
+# - opencv-python-headless
+# - scipy
+# - numpy
+# - onnxruntime
+# - rembg
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc \
+    g++ \
+    libglib2.0-0 \
+    libgomp1 \
+    libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install all Python deps into an isolated prefix so we can
-# copy just that folder into the final stage
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+# Upgrade pip first
+RUN pip install --upgrade pip setuptools wheel
 
-# Pre-download ISNet model weights so first request is instant
-COPY backend/main.py       .
+# Install Python dependencies
+COPY backend/requirements.txt .
+
+RUN pip install \
+    --no-cache-dir \
+    --prefix=/install \
+    -r requirements.txt
+
+# Copy backend files
+COPY backend/main.py .
 COPY backend/processing.py .
+
+# Pre-download rembg ISNet model
 ENV U2NET_HOME=/app/.u2net
+
 RUN PYTHONPATH=/install/lib/python3.11/site-packages \
     python -c "\
 from rembg import new_session; \
 new_session('isnet-general-use'); \
-print('ISNet model cached.')"
-
+print('ISNet model cached successfully.')"
 
 # ─────────────────────────────────────────────────────────────
-# Stage 2 — final (coreless Alpine)
-# Only: Alpine base, runtime .so libs, Python, our code.
-# No gcc, no apk cache, no pip, no build headers.
+# Stage 2 — Runtime
+# Small clean production image
 # ─────────────────────────────────────────────────────────────
 FROM python:3.11-slim
 
-# Only the shared libraries that opencv / rembg / scipy need at runtime
-RUN apk add --no-cache \
-    libstdc++ \
-    openblas \
-    libgomp
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Runtime libraries only
+RUN apt-get update && apt-get install -y \
+    libglib2.0-0 \
+    libgomp1 \
+    libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Bring over installed packages from builder (no pip needed in final image)
+# Copy installed packages from builder
 COPY --from=builder /install /usr/local
 
-# Bring over cached ISNet model weights
+# Copy cached rembg models
 COPY --from=builder /app/.u2net /app/.u2net
 
-# App code
-COPY backend/main.py       .
+# Backend
+COPY backend/main.py .
 COPY backend/processing.py .
 
 # Frontend static files
-COPY index.html  static/index.html
-COPY style.css   static/style.css
-COPY script.js   static/script.js
+COPY index.html ./static/index.html
+COPY style.css ./static/style.css
+COPY script.js ./static/script.js
 
+# Runtime optimizations
 ENV U2NET_HOME=/app/.u2net \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1
 
 EXPOSE 7860
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "4"]
+# Single worker recommended for rembg/onnxruntime
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
