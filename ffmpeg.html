@@ -1,0 +1,2117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FFmpeg Studio</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --surface3: #222230;
+    --border: #2a2a3a;
+    --border2: #3a3a50;
+    --accent: #7c5cfc;
+    --accent2: #c084fc;
+    --accent3: #38bdf8;
+    --green: #34d399;
+    --red: #f87171;
+    --orange: #fb923c;
+    --yellow: #fbbf24;
+    --text: #e8e8f0;
+    --text2: #9898b0;
+    --text3: #5a5a72;
+    --glow: rgba(124, 92, 252, 0.15);
+    --glow2: rgba(124, 92, 252, 0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Noise texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* Header */
+  header {
+    background: linear-gradient(180deg, #141420 0%, transparent 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    box-shadow: 0 0 20px var(--glow);
+  }
+
+  .logo-text {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #fff 0%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .logo-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(124,92,252,0.12);
+    border: 1px solid rgba(124,92,252,0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+
+  .header-spacer { flex: 1; }
+
+  .header-note {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  /* Layout */
+  .layout {
+    display: flex;
+    min-height: calc(100vh - 60px);
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 16px 0;
+    flex-shrink: 0;
+    position: sticky;
+    top: 60px;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+  }
+
+  .sidebar-section {
+    padding: 6px 16px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--text3);
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text2);
+    user-select: none;
+  }
+
+  .nav-item:hover {
+    background: var(--surface2);
+    color: var(--text);
+  }
+
+  .nav-item.active {
+    background: linear-gradient(90deg, rgba(124,92,252,0.12) 0%, transparent 100%);
+    border-left-color: var(--accent);
+    color: var(--accent2);
+  }
+
+  .nav-icon {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+  }
+
+  /* Main content */
+  .main {
+    flex: 1;
+    padding: 28px;
+    overflow-y: auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Section heading */
+  .section-header {
+    margin-bottom: 24px;
+  }
+
+  .section-title {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-title span {
+    font-size: 22px;
+  }
+
+  .section-subtitle {
+    font-size: 13px;
+    color: var(--text3);
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    transition: border-color 0.2s;
+  }
+
+  .card:hover { border-color: var(--border2); }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  /* Grid */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
+
+  /* Form elements */
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text2);
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  select,
+  textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    appearance: none;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--glow2);
+  }
+
+  select option { background: var(--surface2); }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .range-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .range-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--accent2);
+    min-width: 36px;
+    text-align: right;
+    font-weight: 700;
+  }
+
+  /* File drop zone */
+  .dropzone {
+    border: 2px dashed var(--border2);
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--surface2);
+    position: relative;
+  }
+
+  .dropzone:hover, .dropzone.dragover {
+    border-color: var(--accent);
+    background: rgba(124,92,252,0.06);
+  }
+
+  .dropzone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding: 0;
+  }
+
+  .dropzone-icon { font-size: 36px; margin-bottom: 10px; }
+
+  .dropzone-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text2);
+  }
+
+  .dropzone-hint {
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .file-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--green);
+    margin-top: 8px;
+    word-break: break-all;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+    letter-spacing: 0.3px;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #6040e0);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(124,92,252,0.3);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(124,92,252,0.45);
+  }
+
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+  }
+
+  .btn-secondary:hover {
+    background: var(--surface3);
+    border-color: var(--accent);
+    color: var(--accent2);
+  }
+
+  .btn-green {
+    background: linear-gradient(135deg, #059669, #047857);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(52,211,153,0.2);
+  }
+
+  .btn-green:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(52,211,153,0.35);
+  }
+
+  .btn-danger {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    color: #fff;
+  }
+
+  .btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .btn-block { width: 100%; justify-content: center; }
+
+  /* Command output */
+  .cmd-box {
+    background: #08080e;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: var(--green);
+    line-height: 1.6;
+    word-break: break-all;
+    position: relative;
+    min-height: 54px;
+    white-space: pre-wrap;
+  }
+
+  .cmd-box .cmd-label {
+    position: absolute;
+    top: -10px;
+    left: 12px;
+    background: var(--bg);
+    padding: 0 8px;
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .cmd-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* Merge file list */
+  .merge-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .merge-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .merge-item-num {
+    width: 24px;
+    height: 24px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .merge-item-name { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .merge-item-remove { cursor: pointer; color: var(--red); font-size: 14px; }
+  .merge-item-remove:hover { opacity: 0.7; }
+
+  /* Tabs within panel */
+  .inner-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 20px;
+    width: fit-content;
+  }
+
+  .inner-tab {
+    padding: 7px 16px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text2);
+    transition: all 0.15s;
+    user-select: none;
+  }
+
+  .inner-tab.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(124,92,252,0.4);
+  }
+
+  .inner-tab:hover:not(.active) { color: var(--text); }
+
+  /* Presets */
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .preset-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .preset-btn:hover {
+    border-color: var(--accent);
+    background: rgba(124,92,252,0.08);
+  }
+
+  .preset-btn.selected {
+    border-color: var(--accent);
+    background: rgba(124,92,252,0.14);
+  }
+
+  .preset-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .preset-detail {
+    font-size: 11px;
+    color: var(--text3);
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 4px;
+  }
+
+  /* Info tag */
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .tag-accent { background: rgba(124,92,252,0.15); color: var(--accent2); }
+  .tag-green { background: rgba(52,211,153,0.12); color: var(--green); border: 1px solid rgba(52,211,153,0.3); border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+  .tag-green { background: rgba(52,211,153,0.12); color: var(--green); }
+  .tag-orange { background: rgba(251,146,60,0.12); color: var(--orange); }
+
+  /* Tips box */
+  .tip-box {
+    background: rgba(56,189,248,0.06);
+    border: 1px solid rgba(56,189,248,0.2);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12.5px;
+    color: var(--accent3);
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    line-height: 1.5;
+  }
+
+  .tip-icon { font-size: 16px; flex-shrink: 0; }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: all 0.25s;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Divider */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 18px 0;
+  }
+
+  /* Form row */
+  .form-row { margin-bottom: 14px; }
+
+  /* Checkbox */
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .checkbox-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .checkbox-row input[type="checkbox"] { width: auto; }
+
+  /* Progress bar */
+  .progress-bar {
+    height: 4px;
+    background: var(--surface3);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s;
+  }
+
+  /* Time inputs */
+  .time-inputs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .time-sep {
+    color: var(--text3);
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🎬</div>
+    <span class="logo-text">FFmpeg Studio</span>
+    <span class="logo-badge">GUI</span>
+  </div>
+  <div class="header-spacer"></div>
+  <span class="header-note">Generates FFmpeg commands → Run in CMD/Terminal</span>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-section">Tools</div>
+    <div class="nav-item active" onclick="switchTab('compress')">
+      <span class="nav-icon">🗜️</span> Compress
+    </div>
+    <div class="nav-item" onclick="switchTab('resize')">
+      <span class="nav-icon">↔️</span> Resize
+    </div>
+    <div class="nav-item" onclick="switchTab('trim')">
+      <span class="nav-icon">✂️</span> Trim
+    </div>
+    <div class="nav-item" onclick="switchTab('merge')">
+      <span class="nav-icon">🔗</span> Merge
+    </div>
+    <div class="nav-item" onclick="switchTab('convert')">
+      <span class="nav-icon">🔄</span> Convert
+    </div>
+    <div class="nav-item" onclick="switchTab('audio')">
+      <span class="nav-icon">🔊</span> Audio
+    </div>
+    <div class="nav-item" onclick="switchTab('filters')">
+      <span class="nav-icon">✨</span> Filters
+    </div>
+    <div class="nav-item" onclick="switchTab('custom')">
+      <span class="nav-icon">⚙️</span> Custom
+    </div>
+    <div class="sidebar-section" style="margin-top:16px;">Info</div>
+    <div class="nav-item" onclick="switchTab('install')">
+      <span class="nav-icon">📦</span> Install FFmpeg
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- COMPRESS -->
+    <div id="tab-compress" class="tab-panel active">
+      <div class="section-header">
+        <div class="section-title"><span>🗜️</span> Video Compression</div>
+        <div class="section-subtitle">Reduce file size while maintaining quality</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Input File</div>
+        <div class="dropzone" id="dz-compress">
+          <input type="file" accept="video/*" onchange="setFile('compress', this)">
+          <div class="dropzone-icon">📂</div>
+          <div class="dropzone-text">Drop video file or click to browse</div>
+          <div class="dropzone-hint">mp4, mkv, avi, mov, webm, flv...</div>
+          <div class="file-name" id="fn-compress"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Quality Presets</div>
+        <div class="preset-grid" id="compress-presets">
+          <div class="preset-btn selected" onclick="selectPreset('compress', this, {crf:18})" data-preset="high">
+            <div class="preset-name">🏆 High Quality</div>
+            <div class="preset-detail">CRF 18 · Larger file</div>
+          </div>
+          <div class="preset-btn" onclick="selectPreset('compress', this, {crf:23})" data-preset="balanced">
+            <div class="preset-name">⚖️ Balanced</div>
+            <div class="preset-detail">CRF 23 · Default</div>
+          </div>
+          <div class="preset-btn" onclick="selectPreset('compress', this, {crf:28})" data-preset="small">
+            <div class="preset-name">📦 Small Size</div>
+            <div class="preset-detail">CRF 28 · Smaller file</div>
+          </div>
+          <div class="preset-btn" onclick="selectPreset('compress', this, {crf:32})" data-preset="tiny">
+            <div class="preset-name">🔬 Tiny</div>
+            <div class="preset-detail">CRF 32 · Max compress</div>
+          </div>
+          <div class="preset-btn" onclick="selectPreset('compress', this, {crf:null})" data-preset="custom">
+            <div class="preset-name">🎛️ Custom CRF</div>
+            <div class="preset-detail">Manual control</div>
+          </div>
+          <div class="preset-btn" onclick="selectPreset('compress', this, {bitrate:true})" data-preset="bitrate">
+            <div class="preset-name">📡 Target Bitrate</div>
+            <div class="preset-detail">Fixed bitrate mode</div>
+          </div>
+        </div>
+
+        <div id="compress-crf-row" class="form-row">
+          <label>CRF Value (0=lossless, 51=worst) <span class="tag tag-accent">lower = better quality</span></label>
+          <div class="range-row">
+            <input type="range" min="0" max="51" value="18" id="compress-crf" oninput="updateRange('compress-crf-val', this.value); buildCompress()">
+            <span class="range-val" id="compress-crf-val">18</span>
+          </div>
+        </div>
+
+        <div id="compress-bitrate-row" class="form-row" style="display:none;">
+          <label>Target Bitrate</label>
+          <input type="text" id="compress-bitrate-val" value="2000k" placeholder="e.g. 2000k or 2M" oninput="buildCompress()">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Encoder Settings</div>
+        <div class="grid-3">
+          <div class="form-row">
+            <label>Video Codec</label>
+            <select id="compress-vcodec" onchange="buildCompress()">
+              <option value="libx264">H.264 (libx264) — Universal</option>
+              <option value="libx265">H.265/HEVC (libx265) — Smaller</option>
+              <option value="libvpx-vp9">VP9 — Open source</option>
+              <option value="libaom-av1">AV1 — Best compress</option>
+              <option value="copy">Copy (no re-encode)</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Encoder Preset</label>
+            <select id="compress-preset" onchange="buildCompress()">
+              <option value="ultrafast">ultrafast</option>
+              <option value="superfast">superfast</option>
+              <option value="veryfast">veryfast</option>
+              <option value="faster">faster</option>
+              <option value="fast">fast</option>
+              <option value="medium" selected>medium</option>
+              <option value="slow">slow</option>
+              <option value="slower">slower</option>
+              <option value="veryslow">veryslow</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Audio</label>
+            <select id="compress-acodec" onchange="buildCompress()">
+              <option value="copy">Copy (no re-encode)</option>
+              <option value="aac">AAC</option>
+              <option value="libmp3lame">MP3</option>
+              <option value="libopus">Opus</option>
+              <option value="none">Remove audio</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>Output Filename</label>
+          <input type="text" id="compress-out" value="output_compressed.mp4" oninput="buildCompress()">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Generated Command</div>
+        <div class="cmd-box" id="compress-cmd"><span class="cmd-label">COMMAND</span>ffmpeg -i "input.mp4" -vcodec libx264 -crf 18 -preset medium -acodec copy "output_compressed.mp4"</div>
+        <div class="cmd-actions">
+          <button class="btn btn-primary" onclick="copyCmd('compress-cmd')">📋 Copy Command</button>
+          <button class="btn btn-secondary" onclick="saveBat('compress-cmd', 'compress')">💾 Save as .bat</button>
+        </div>
+        <div class="tip-box">
+          <span class="tip-icon">💡</span>
+          <span>Open <strong>Command Prompt</strong> in the folder containing your video, paste the command, and press Enter. Make sure FFmpeg is installed and added to PATH.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESIZE -->
+    <div id="tab-resize" class="tab-panel">
+      <div class="section-header">
+        <div class="section-title"><span>↔️</span> Resize / Scale</div>
+        <div class="section-subtitle">Change video resolution, width, height, or aspect ratio</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Input File</div>
+        <div class="dropzone">
+          <input type="file" accept="video/*" onchange="setFile('resize', this)">
+          <div class="dropzone-icon">📂</div>
+          <div class="dropzone-text">Drop video file or click to browse</div>
+          <div class="file-name" id="fn-resize"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Common Resolutions</div>
+        <div class="preset-grid" id="resize-presets">
+          <div class="preset-btn" onclick="setResolution(3840,2160,this)">
+            <div class="preset-name">4K UHD</div>
+            <div class="preset-detail">3840 × 2160</div>
+          </div>
+          <div class="preset-btn" onclick="setResolution(2560,1440,this)">
+            <div class="preset-name">QHD / 2K</div>
+            <div class="preset-detail">2560 × 1440</div>
+          </div>
+          <div class="preset-btn" onclick="setResolution(1920,1080,this)">
+            <div class="preset-name">Full HD</div>
+            <div class="preset-detail">1920 × 1080</div>
+          </div>
+          <div class="preset-btn" onclick="setResolution(1280,720,this)">
+            <div class="preset-name">HD 720p</div>
+            <div class="preset-detail">1280 × 720</div>
+          </div>
+          <div class="preset-btn" onclick="setResolution(854,480,this)">
+            <div class="preset-name">SD 480p</div>
+            <div class="preset-detail">854 × 480</div>
+          </div>
+          <div class="preset-btn selected" onclick="setResolution(null,null,this)">
+            <div class="preset-name">🎛️ Custom</div>
+            <div class="preset-detail">Enter manually</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Dimensions</div>
+        <div class="grid-2">
+          <div class="form-row">
+            <label>Width (px) — use -1 to keep ratio</label>
+            <input type="number" id="resize-w" value="1920" min="-1" oninput="buildResize()">
+          </div>
+          <div class="form-row">
+            <label>Height (px) — use -1 to keep ratio</label>
+            <input type="number" id="resize-h" value="1080" min="-1" oninput="buildResize()">
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="checkbox-row">
+            <input type="checkbox" id="resize-keepratio" checked onchange="buildResize()">
+            Auto-maintain aspect ratio (set one dimension to -1)
+          </label>
+        </div>
+        <div class="grid-2">
+          <div class="form-row">
+            <label>Video Quality (CRF)</label>
+            <div class="range-row">
+              <input type="range" min="0" max="51" value="23" id="resize-crf" oninput="updateRange('resize-crf-val', this.value); buildResize()">
+              <span class="range-val" id="resize-crf-val">23</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Output Filename</label>
+            <input type="text" id="resize-out" value="output_resized.mp4" oninput="buildResize()">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Generated Command</div>
+        <div class="cmd-box" id="resize-cmd"><span class="cmd-label">COMMAND</span>ffmpeg -i "input.mp4" -vf "scale=1920:1080" -c:v libx264 -crf 23 "output_resized.mp4"</div>
+        <div class="cmd-actions">
+          <button class="btn btn-primary" onclick="copyCmd('resize-cmd')">📋 Copy Command</button>
+          <button class="btn btn-secondary" onclick="saveBat('resize-cmd', 'resize')">💾 Save as .bat</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRIM -->
+    <div id="tab-trim" class="tab-panel">
+      <div class="section-header">
+        <div class="section-title"><span>✂️</span> Trim / Cut</div>
+        <div class="section-subtitle">Cut a specific portion of the video</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Input File</div>
+        <div class="dropzone">
+          <input type="file" accept="video/*" onchange="setFile('trim', this)">
+          <div class="dropzone-icon">📂</div>
+          <div class="dropzone-text">Drop video file or click to browse</div>
+          <div class="file-name" id="fn-trim"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Time Range</div>
+        <div class="grid-2">
+          <div class="form-row">
+            <label>Start Time</label>
+            <input type="text" id="trim-start" value="00:00:00" placeholder="HH:MM:SS or seconds" oninput="buildTrim()">
+          </div>
+          <div class="form-row">
+            <label>End Time <span class="tag tag-orange">or use Duration below</span></label>
+            <input type="text" id="trim-end" value="00:01:00" placeholder="HH:MM:SS or seconds" oninput="buildTrim()">
+          </div>
+        </div>
+        <div class="form-row">
+          <label>OR Duration (leave blank to use End Time)</label>
+          <input type="text" id="trim-dur" placeholder="e.g. 30 (seconds) or 00:00:30" oninput="buildTrim()">
+        </div>
+        <hr class="divider">
+        <div class="form-row">
+          <label>Trim Mode</label>
+          <div class="inner-tabs" style="width:100%">
+            <div class="inner-tab active" id="trim-mode-fast" onclick="setTrimMode('fast')">⚡ Fast (no re-encode)</div>
+            <div class="inner-tab" id="trim-mode-accurate" onclick="setTrimMode('accurate')">🎯 Accurate (re-encode)</div>
+          </div>
+        </div>
+        <div class="tip-box">
+          <span class="tip-icon">⚡</span>
+          <span><strong>Fast mode</strong> is near-instant but may be off by a few frames. <strong>Accurate mode</strong> re-encodes the clip so start/end are frame-perfect but takes longer.</span>
+        </div>
+        <div class="form-row" style="margin-top:14px;">
+          <label>Output Filename</label>
+          <input type="text" id="trim-out" value="output_trimmed.mp4" oninput="buildTrim()">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Generated Command</div>
+        <div class="cmd-box" id="trim-cmd"><span class="cmd-label">COMMAND</span>ffmpeg -ss 00:00:00 -to 00:01:00 -i "input.mp4" -c copy "output_trimmed.mp4"</div>
+        <div class="cmd-actions">
+          <button class="btn btn-primary" onclick="copyCmd('trim-cmd')">📋 Copy Command</button>
+          <button class="btn btn-secondary" onclick="saveBat('trim-cmd', 'trim')">💾 Save as .bat</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MERGE -->
+    <div id="tab-merge" class="tab-panel">
+      <div class="section-header">
+        <div class="section-title"><span>🔗</span> Merge / Concatenate</div>
+        <div class="section-subtitle">Join multiple videos into one</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Video Files <span class="tag tag-accent" style="margin-left:6px;">Add in order</span></div>
+        <div class="dropzone" id="dz-merge">
+          <input type="file" accept="video/*" multiple onchange="addMergeFiles(this)">
+          <div class="dropzone-icon">📂</div>
+          <div class="dropzone-text">Drop video files or click to browse</div>
+          <div class="dropzone-hint">Select multiple files at once</div>
+        </div>
+        <div class="merge-list" id="merge-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Merge Settings</div>
+        <div class="grid-2">
+          <div class="form-row">
+            <label>Merge Method</label>
+            <select id="merge-method" onchange="buildMerge()">
+              <option value="concat-demuxer">Concat Demuxer (fast, same format)</option>
+              <option value="concat-filter">Concat Filter (re-encode, any format)</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Output Filename</label>
+            <input type="text" id="merge-out" value="output_merged.mp4" oninput="buildMerge()">
+          </div>
+        </div>
+        <div class="tip-box">
+          <span class="tip-icon">💡</span>
+          <span><strong>Concat Demuxer</strong>: Best for same-codec videos (fastest, no quality loss). Uses a temporary filelist.txt. <strong>Concat Filter</strong>: Works with any videos but re-encodes everything.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Generated Commands</div>
+        <div class="cmd-box" id="merge-cmd"><span class="cmd-label">COMMAND</span>Add at least 2 files above to generate merge command.</div>
+        <div class="cmd-actions">
+          <button class="btn btn-primary" onclick="copyCmd('merge-cmd')">📋 Copy Command</button>
+          <button class="btn btn-secondary" onclick="saveBat('merge-cmd', 'merge')">💾 Save as .bat</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONVERT -->
+    <div id="tab-convert" class="tab-panel">
+      <div class="section-header">
+        <div class="section-title"><span>🔄</span> Format Convert</div>
+        <div class="section-subtitle">Convert between video formats</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Input File</div>
+        <div class="dropzone">
+          <input type="file" accept="video/*" onchange="setFile('convert', this)">
+          <div class="dropzone-icon">📂</div>
+          <div class="dropzone-text">Drop video file or click to browse</div>
+          <div class="file-name" id="fn-convert"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Output Format</div>
+        <div class="preset-grid" id="convert-presets">
+          <div class="preset-btn selected" onclick="selectConvertFmt('mp4', this)">
+            <div class="preset-name">📹 MP4</div>
+            <div class="preset-detail">H.264 + AAC · Universal</div>
+          </div>
+          <div class="preset-btn" onclick="selectConvertFmt('mkv', this)">
+            <div class="preset-name">📦 MKV</div>
+            <div class="preset-detail">Flexible container</div>
+          </div>
+          <div class="preset-btn" onclick="selectConvertFmt('webm', this)">
+            <div class="preset-name">🌐 WebM</div>
+            <div class="preset-detail">VP9 · Web-optimized</div>
+          </div>
+          <div class="preset-btn" onclick="selectConvertFmt('avi', this)">
+            <div class="preset-name">📼 AVI</div>
+            <div class="preset-detail">Legacy format</div>
+          </div>
+          <div class="preset-btn" onclick="selectConvertFmt('mov', this)">
+            <div class="preset-name">🍎 MOV</div>
+            <div class="preset-detail">Apple / QuickTime</div>
+          </div>
+          <div class="preset-btn" onclick="selectConvertFmt('gif', this)">
+            <div class="preset-name">🎞️ GIF</div>
+            <div class="preset-detail">Animated image</div>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="form-row">
+            <label>Video Codec</label>
+            <select id="convert-vcodec" onchange="buildConvert()">
+              <option value="libx264">libx264</option>
+              <option value="libx265">libx265</option>
+              <option value="libvpx-vp9">VP9</option>
+              <option value="copy">copy</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Audio Codec</label>
+            <select id="convert-acodec" onchange="buildConvert()">
+              <option value="aac">AAC</option>
+              <option value="libmp3lame">MP3</option>
+              <option value="libopus">Opus</option>
+              <option value="copy">copy</option>
+              <option value="none">Remove</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Output Filename</label>
+            <input type="text" id="convert-out" value="output.mp4" oninput="buildConvert()">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Generated Command</div>
+        <div class="cmd-box" id="convert-cmd"><span class="cmd-label">COMMAND</span>ffmpeg -i "input.mp4" -c:v libx264 -c:a aac "output.mp4"</div>
+        <div class="cmd-actions">
+          <button class="btn btn-primary" onclick="copyCmd('convert-cmd')">📋 Copy Command</button>
+          <button class="btn btn-secondary" onclick="saveBat('convert-cmd', 'convert')">💾 Save as .bat</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUDIO -->
+    <div id="tab-audio" class="tab-panel">
+      <div class="section-header">
+        <div class="section-title"><span>🔊</span> Audio Tools</div>
+        <div class="section-subtitle">Extract, remove, replace, or adjust audio</div>
+      </div>
+
+      <div class="inner-tabs">
+        <div class="inner-tab active" onclick="switchInner('audio', 'extract', this)">Extract Audio</div>
+        <div class="inner-tab" onclick="switchInner('audio', 'remove', this)">Remove Audio</div>
+        <div class="inner-tab" onclick="switchInner('audio', 'replace', this)">Replace Audio</div>
+        <div class="inner-tab" onclick="switchInner('audio', 'volume', this)">Volume</div>
+      </div>
+
+      <div id="audio-extract" class="audio-panel">
+        <div class="card">
+          <div class="card-title">Extract Audio from Video</div>
+          <div class="dropzone">
+            <input type="file" accept="video/*" onchange="setFile('audio', this)">
+            <div class="dropzone-icon">📂</div>
+            <div class="dropzone-text">Drop video file</div>
+            <div class="file-name" id="fn-audio"></div>
+          </div>
+          <div class="grid-2" style="margin-top:14px;">
+            <div class="form-row">
+              <label>Audio Format</label>
+              <select id="audio-ext" onchange="buildAudio()">
+                <option value="mp3">MP3</option>
+                <option value="aac">AAC</option>
+                <option value="wav">WAV (uncompressed)</option>
+                <option value="flac">FLAC (lossless)</option>
+                <option value="ogg">OGG</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Output Filename</label>
+              <input type="text" id="audio-out" value="output_audio.mp3" oninput="buildAudio()">
+            </div>
+          </div>
+          <div class="cmd-box" id="audio-cmd" style="margin-top:14px;"><span class="cmd-label">COMMAND</span>ffmpeg -i "input.mp4" -vn -acodec libmp3lame "output_audio.mp3"</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyCmd('audio-cmd')">📋 Copy Command</button>
+            <button class="btn btn-secondary" onclick="saveBat('audio-cmd', 'audio')">💾 Save as .bat</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="audio-remove" class="audio-panel" style="display:none;">
+        <div class="card">
+          <div class="card-title">Remove Audio (Mute Video)</div>
+          <div class="dropzone">
+            <input type="file" accept="video/*" onchange="setFile('audio-rm', this)">
+            <div class="dropzone-icon">📂</div>
+            <div class="dropzone-text">Drop video file</div>
+            <div class="file-name" id="fn-audio-rm"></div>
+          </div>
+          <div class="form-row" style="margin-top:14px;">
+            <label>Output Filename</label>
+            <input type="text" id="audio-rm-out" value="output_muted.mp4" oninput="buildAudioRm()">
+          </div>
+          <div class="cmd-box" id="audio-rm-cmd" style="margin-top:14px;"><span class="cmd-label">COMMAND</span>ffmpeg -i "input.mp4" -an -c:v copy "output_muted.mp4"</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyCmd('audio-rm-cmd')">📋 Copy Command</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="audio-replace" class="audio-panel" style="display:none;">
+        <div class="card">
+          <div class="card-title">Replace Audio in Video</div>
+          <div class="grid-2">
+            <div>
+              <label style="margin-bottom:8px;display:block;">Video File</label>
+              <div class="dropzone">
+                <input type="file" accept="video/*" onchange="setFile('audio-rep-v', this)">
+                <div class="dropzone-icon">🎬</div>
+                <div class="dropzone-text">Video file</div>
+                <div class="file-name" id="fn-audio-rep-v"></div>
+              </div>
+            </div>
+            <div>
+              <label style="margin-bottom:8px;display:block;">New Audio File</label>
+              <div class="dropzone">
+                <input type="file" accept="audio/*" onchange="setFile('audio-rep-a', this)">
+                <div class="dropzone-icon">🎵</div>
+                <div class="dropzone-text">Audio file</div>
+                <div class="file-name" id="fn-audio-rep-a"></div>
+              </div>
+            </div>
+          </div>
+          <div class="form-row" style="margin-top:14px;">
+            <label>Output Filename</label>
+            <input type="text" id="audio-rep-out" value="output_replaced.mp4" oninput="buildAudioRep()">
+          </div>
+          <div class="cmd-box" id="audio-rep-cmd" style="margin-top:14px;"><span class="cmd-label">COMMAND</span>ffmpeg -i "input_video.mp4" -i "new_audio.mp3" -c:v copy -map 0:v:0 -map 1:a:0 -shortest "output_replaced.mp4"</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyCmd('audio-rep-cmd')">📋 Copy Command</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="audio-volume" class="audio-panel" style="display:none;">
+        <div class="card">
+          <div class="card-title">Adjust Volume</div>
+          <div class="dropzone">
+            <input type="file" accept="video/*,audio/*" onchange="setFile('audio-vol', this)">
+            <div class="dropzone-icon">📂</div>
+            <div class="dropzone-text">Drop video or audio file</div>
+            <div class="file-name" id="fn-audio-vol"></div>
+          </div>
+          <div class="form-row" style="margin-top:14px;">
+            <label>Volume Level (1.0 = original, 2.0 = double, 0.5 = half)</label>
+            <div class="range-row">
+              <input type="range" min="0.1" max="4" step="0.1" value="1.5" id="audio-vol-range" oninput="updateRange('audio-vol-val', this.value); buildAudioVol()">
+              <span class="range-val" id="audio-vol-val">1.5</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Output Filename</label>
+            <input type="text" id="audio-vol-out" value="output_volume.mp4" oninput="buildAudioVol()">
+          </div>
+          <div class="cmd-box" id="audio-vol-cmd" style="margin-top:14px;"><span class="cmd-label">COMMAND</span>ffmpeg -i "input.mp4" -filter:a "volume=1.5" -c:v copy "output_volume.mp4"</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyCmd('audio-vol-cmd')">📋 Copy Command</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FILTERS -->
+    <div id="tab-filters" class="tab-panel">
+      <div class="section-header">
+        <div class="section-title"><span>✨</span> Video Filters</div>
+        <div class="section-subtitle">Speed, rotate, flip, brightness, and more</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Input File</div>
+        <div class="dropzone">
+          <input type="file" accept="video/*" onchange="setFile('filters', this)">
+          <div class="dropzone-icon">📂</div>
+          <div class="dropzone-text">Drop video file</div>
+          <div class="file-name" id="fn-filters"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Speed</div>
+          <div class="form-row">
+            <label>Playback Speed (0.5 = half speed, 2.0 = 2x)</label>
+            <div class="range-row">
+              <input type="range" min="0.25" max="4" step="0.25" value="1" id="filter-speed" oninput="updateRange('filter-speed-val', this.value); buildFilters()">
+              <span class="range-val" id="filter-speed-val">1</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Rotation</div>
+          <div class="form-row">
+            <label>Rotate Video</label>
+            <select id="filter-rotate" onchange="buildFilters()">
+              <option value="none">No rotation</option>
+              <option value="90">90° Clockwise</option>
+              <option value="180">180°</option>
+              <option value="270">270° Clockwise</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="checkbox-row">
+              <input type="checkbox" id="filter-hflip" onchange="buildFilters()"> Flip Horizontal
+            </label>
+          </div>
+          <div class="form-row">
+            <label class="checkbox-row">
+              <input type="checkbox" id="filter-vflip" onchange="buildFilters()"> Flip Vertical
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Color & Brightness</div>
+        <div class="grid-3">
+          <div class="form-row">
+            <label>Brightness (-1 to 1)</label>
+            <div class="range-row">
+              <input type="range" min="-1" max="1" step="0.05" value="0" id="filter-brightness" oninput="updateRange('filter-brightness-val', this.value); buildFilters()">
+              <span class="range-val" id="filter-brightness-val">0</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Contrast (-1000 to 1000)</label>
+            <div class="range-row">
+              <input type="range" min="-1000" max="1000" step="10" value="0" id="filter-contrast" oninput="updateRange('filter-contrast-val', this.value); buildFilters()">
+              <span class="range-val" id="filter-contrast-val">0</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Saturation (0 to 3)</label>
+            <div class="range-row">
+              <input type="range" min="0" max="3" step="0.1" value="1" id="filter-saturation" oninput="updateRange('filter-saturation-val', this.value); buildFilters()">
+              <span class="range-val" id="filter-saturation-val">1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">FPS & Output</div>
+        <div class="grid-3">
+          <div class="form-row">
+            <label>Frame Rate (fps, blank = keep)</label>
+            <input type="number" id="filter-fps" placeholder="e.g. 30" oninput="buildFilters()">
+          </div>
+          <div class="form-row">
+            <label>Output Quality (CRF)</label>
+            <div class="range-row">
+              <input type="range" min="0" max="51" value="23" id="filter-crf" oninput="updateRange('filter-crf-val', this.value); buildFilters()">
+              <span class="range-val" id="filter-crf-val">23</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Output Filename</label>
+            <input type="text" id="filter-out" value="output_filtered.mp4" oninput="buildFilters()">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Generated Command</div>
+        <div class="cmd-box" id="filters-cmd"><span class="cmd-label">COMMAND</span>ffmpeg -i "input.mp4" -c:v libx264 -crf 23 -c:a copy "output_filtered.mp4"</div>
+        <div class="cmd-actions">
+          <button class="btn btn-primary" onclick="copyCmd('filters-cmd')">📋 Copy Command</button>
+          <button class="btn btn-secondary" onclick="saveBat('filters-cmd', 'filters')">💾 Save as .bat</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CUSTOM -->
+    <div id="tab-custom" class="tab-panel">
+      <div class="section-header">
+        <div class="section-title"><span>⚙️</span> Custom Command Builder</div>
+        <div class="section-subtitle">Build any FFmpeg command with assistance</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Quick Templates</div>
+        <div class="preset-grid">
+          <div class="preset-btn" onclick="loadTemplate('screenshot')">
+            <div class="preset-name">📸 Screenshot</div>
+            <div class="preset-detail">Extract frame at time</div>
+          </div>
+          <div class="preset-btn" onclick="loadTemplate('gif')">
+            <div class="preset-name">🎞️ Video → GIF</div>
+            <div class="preset-detail">High quality GIF</div>
+          </div>
+          <div class="preset-btn" onclick="loadTemplate('stabilize')">
+            <div class="preset-name">🎯 Stabilize</div>
+            <div class="preset-detail">Video stabilization</div>
+          </div>
+          <div class="preset-btn" onclick="loadTemplate('watermark')">
+            <div class="preset-name">🔒 Watermark</div>
+            <div class="preset-detail">Add image overlay</div>
+          </div>
+          <div class="preset-btn" onclick="loadTemplate('deinterlace')">
+            <div class="preset-name">📺 Deinterlace</div>
+            <div class="preset-detail">Fix interlaced video</div>
+          </div>
+          <div class="preset-btn" onclick="loadTemplate('2pass')">
+            <div class="preset-name">🎯 2-Pass Encode</div>
+            <div class="preset-detail">Best quality bitrate</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Command Editor</div>
+        <div class="form-row">
+          <label>FFmpeg Command (editable)</label>
+          <textarea id="custom-cmd-input" rows="5" style="font-family:'JetBrains Mono',monospace;line-height:1.6;resize:vertical;" oninput="syncCustom()">ffmpeg -i "input.mp4" -c:v libx264 -crf 23 -c:a copy "output.mp4"</textarea>
+        </div>
+        <div class="cmd-actions">
+          <button class="btn btn-primary" onclick="copyCustom()">📋 Copy Command</button>
+          <button class="btn btn-secondary" onclick="saveCustomBat()">💾 Save as .bat</button>
+          <button class="btn btn-secondary btn-sm" onclick="clearCustom()">🗑️ Clear</button>
+        </div>
+        <div class="tip-box" style="margin-top:14px;">
+          <span class="tip-icon">⚠️</span>
+          <span>Always wrap file paths containing spaces in double quotes. The generated .bat file can be placed in the same folder as your video and double-clicked to run.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- INSTALL -->
+    <div id="tab-install" class="tab-panel">
+      <div class="section-header">
+        <div class="section-title"><span>📦</span> Install FFmpeg</div>
+        <div class="section-subtitle">Step-by-step setup guide for every platform</div>
+      </div>
+
+      <!-- OS Switcher -->
+      <div class="inner-tabs" style="width:100%;display:flex;flex-wrap:wrap;">
+        <div class="inner-tab active" onclick="switchOS('windows',this)">🪟 Windows</div>
+        <div class="inner-tab" onclick="switchOS('macos',this)">🍎 macOS</div>
+        <div class="inner-tab" onclick="switchOS('ubuntu',this)">🐧 Ubuntu / Debian</div>
+        <div class="inner-tab" onclick="switchOS('fedora',this)">🎩 Fedora / RHEL</div>
+        <div class="inner-tab" onclick="switchOS('arch',this)">🔵 Arch / Manjaro</div>
+        <div class="inner-tab" onclick="switchOS('android',this)">🤖 Android (Termux)</div>
+      </div>
+
+      <!-- WINDOWS -->
+      <div id="os-windows" class="os-panel">
+        <div class="card">
+          <div class="card-title">Method 1 — Winget <span class="tag tag-green" style="font-size:11px;margin-left:6px;">Recommended · Windows 10/11</span></div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Built-in Windows package manager. No extra tools needed.</p>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">POWERSHELL / CMD (Admin)</span>winget install Gyan.FFmpeg</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('winget install Gyan.FFmpeg')">📋 Copy</button>
+          </div>
+          <div class="tip-box" style="margin-top:14px;">
+            <span class="tip-icon">✅</span>
+            <span>Run as <strong>Administrator</strong>. Winget automatically adds FFmpeg to your system PATH — no extra steps needed.</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Method 2 — Chocolatey</div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">First install Chocolatey from <strong style="color:var(--accent2);">chocolatey.org</strong>, then run:</p>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">ADMIN CMD</span>choco install ffmpeg-full</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('choco install ffmpeg-full')">📋 Copy</button>
+          </div>
+          <div class="tip-box" style="margin-top:14px;">
+            <span class="tip-icon">💡</span>
+            <span>Use <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;">ffmpeg-full</code> instead of <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;">ffmpeg</code> to include all codecs (libx265, AV1, etc).</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Method 3 — Scoop</div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Install Scoop from <strong style="color:var(--accent2);">scoop.sh</strong>, then:</p>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">POWERSHELL</span>scoop install ffmpeg</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('scoop install ffmpeg')">📋 Copy</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Method 4 — Manual Download</div>
+          <ol style="padding-left:20px;line-height:2.2;font-size:14px;color:var(--text2);">
+            <li>Go to <strong style="color:var(--accent2);">https://www.gyan.dev/ffmpeg/builds/</strong></li>
+            <li>Download <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px;">ffmpeg-release-full.7z</code></li>
+            <li>Extract to <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px;">C:\ffmpeg\</code></li>
+            <li>Open <strong>System Properties → Advanced → Environment Variables</strong></li>
+            <li>Under <em>System Variables</em>, find <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px;">Path</code> → Edit → New</li>
+            <li>Add <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px;">C:\ffmpeg\bin</code> → OK → restart CMD</li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Add to PATH manually (if needed)</div>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">POWERSHELL (Admin)</span>setx /M PATH "$env:PATH;C:\ffmpeg\bin"</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('setx /M PATH &quot;$env:PATH;C:\\ffmpeg\\bin&quot;')">📋 Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MACOS -->
+      <div id="os-macos" class="os-panel" style="display:none;">
+        <div class="card">
+          <div class="card-title">Method 1 — Homebrew <span class="tag tag-green" style="font-size:11px;margin-left:6px;">Recommended</span></div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Install Homebrew from <strong style="color:var(--accent2);">brew.sh</strong> if you haven't already, then:</p>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL</span>brew install ffmpeg</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('brew install ffmpeg')">📋 Copy</button>
+          </div>
+          <div class="tip-box" style="margin-top:14px;">
+            <span class="tip-icon">✅</span>
+            <span>Homebrew automatically adds FFmpeg to your PATH. Works on both Intel and Apple Silicon (M1/M2/M3) Macs.</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Method 1b — Homebrew with all codecs</div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Includes non-free codecs like x265, AV1, FDK-AAC:</p>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL</span>brew install ffmpeg --with-chromaprint --with-fdk-aac --with-libass --with-librsvg --with-libsoxr --with-libssh --with-tesseract --with-libvidstab --with-x265 --with-xvid --with-zeromq --with-zimg</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('brew install ffmpeg --with-chromaprint --with-fdk-aac --with-libass --with-librsvg --with-libsoxr --with-libssh --with-tesseract --with-libvidstab --with-x265 --with-xvid --with-zeromq --with-zimg')">📋 Copy</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Method 2 — MacPorts</div>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL</span>sudo port install ffmpeg +nonfree</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('sudo port install ffmpeg +nonfree')">📋 Copy</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Method 3 — Manual Download</div>
+          <ol style="padding-left:20px;line-height:2.2;font-size:14px;color:var(--text2);">
+            <li>Go to <strong style="color:var(--accent2);">https://evermeet.cx/ffmpeg/</strong></li>
+            <li>Download the latest static build for macOS</li>
+            <li>Extract and move the binary: <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px;">sudo mv ffmpeg /usr/local/bin/</code></li>
+            <li>Allow it in <strong>System Settings → Privacy & Security</strong> if macOS blocks it</li>
+          </ol>
+          <div class="cmd-box" style="color:var(--accent3);margin-top:12px;"><span class="cmd-label">TERMINAL</span>sudo mv ~/Downloads/ffmpeg /usr/local/bin/ && sudo chmod +x /usr/local/bin/ffmpeg</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('sudo mv ~/Downloads/ffmpeg /usr/local/bin/ && sudo chmod +x /usr/local/bin/ffmpeg')">📋 Copy</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Apple Silicon note</div>
+          <div class="tip-box">
+            <span class="tip-icon">🍎</span>
+            <span>On M1/M2/M3 Macs, Homebrew installs to <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;">/opt/homebrew/bin/</code> instead of <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;">/usr/local/bin/</code>. Make sure <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;">/opt/homebrew/bin</code> is in your PATH by adding it to <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;">~/.zshrc</code>.</span>
+          </div>
+          <div class="cmd-box" style="color:var(--accent3);margin-top:12px;"><span class="cmd-label">~/.zshrc</span>echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText(`echo 'export PATH=\"/opt/homebrew/bin:$PATH\"' >> ~/.zshrc && source ~/.zshrc`)">📋 Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- UBUNTU / DEBIAN -->
+      <div id="os-ubuntu" class="os-panel" style="display:none;">
+        <div class="card">
+          <div class="card-title">Method 1 — apt <span class="tag tag-green" style="font-size:11px;margin-left:6px;">Recommended</span></div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Works on Ubuntu 20.04+, Debian 10+, Linux Mint, Pop!_OS, and all derivatives.</p>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL</span>sudo apt update && sudo apt install ffmpeg -y</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('sudo apt update && sudo apt install ffmpeg -y')">📋 Copy</button>
+          </div>
+          <div class="tip-box" style="margin-top:14px;">
+            <span class="tip-icon">⚠️</span>
+            <span>The default apt version may be outdated. Use the Snap or PPA method below for the latest build.</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Method 2 — Snap (latest stable)</div>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL</span>sudo snap install ffmpeg</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('sudo snap install ffmpeg')">📋 Copy</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Method 3 — Static Build (latest, no install needed)</div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Downloads a self-contained binary — no package manager required.</p>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL</span>wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && tar xf ffmpeg-release-amd64-static.tar.xz && sudo mv ffmpeg-*-amd64-static/ffmpeg /usr/local/bin/</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && tar xf ffmpeg-release-amd64-static.tar.xz && sudo mv ffmpeg-*-amd64-static/ffmpeg /usr/local/bin/')">📋 Copy</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Check installed codecs</div>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL</span>ffmpeg -codecs 2>/dev/null | grep -E "DEV|DEA"</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('ffmpeg -codecs 2>/dev/null | grep -E \"DEV|DEA\"')">📋 Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- FEDORA / RHEL -->
+      <div id="os-fedora" class="os-panel" style="display:none;">
+        <div class="card">
+          <div class="card-title">Method 1 — RPM Fusion <span class="tag tag-green" style="font-size:11px;margin-left:6px;">Recommended</span></div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">FFmpeg is not in the official Fedora repos due to codec licensing. Enable RPM Fusion first:</p>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL (Step 1 — Enable RPM Fusion)</span>sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm -y</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm -y')">📋 Copy</button>
+          </div>
+          <div class="cmd-box" style="color:var(--accent3);margin-top:10px;"><span class="cmd-label">TERMINAL (Step 2 — Install FFmpeg)</span>sudo dnf install ffmpeg ffmpeg-devel -y</div>
+          <div class="cmd-actions" style="margin-top:8px;">
+            <button class="btn btn-primary" onclick="copyText('sudo dnf install ffmpeg ffmpeg-devel -y')">📋 Copy</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Method 2 — RHEL / AlmaLinux / Rocky Linux</div>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL</span>sudo dnf install epel-release -y && sudo dnf install --enablerepo=epel ffmpeg -y</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('sudo dnf install epel-release -y && sudo dnf install --enablerepo=epel ffmpeg -y')">📋 Copy</button>
+          </div>
+          <div class="tip-box" style="margin-top:14px;">
+            <span class="tip-icon">💡</span>
+            <span>On RHEL 9+, also enable CRB: <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;">sudo crb enable</code> before installing EPEL packages.</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Method 3 — Flatpak (app-level, not system-wide)</div>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL</span>flatpak install flathub org.freedesktop.Platform.ffmpeg-full</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('flatpak install flathub org.freedesktop.Platform.ffmpeg-full')">📋 Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARCH / MANJARO -->
+      <div id="os-arch" class="os-panel" style="display:none;">
+        <div class="card">
+          <div class="card-title">Method 1 — pacman <span class="tag tag-green" style="font-size:11px;margin-left:6px;">Recommended</span></div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">FFmpeg is in the official Arch repos — always up to date.</p>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL</span>sudo pacman -S ffmpeg</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('sudo pacman -S ffmpeg')">📋 Copy</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Method 2 — ffmpeg-full (AUR, all codecs)</div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Includes every optional codec: FDK-AAC, MPEG-1/2, libx265, etc. Install with your AUR helper:</p>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL (yay)</span>yay -S ffmpeg-full</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('yay -S ffmpeg-full')">📋 Copy</button>
+          </div>
+          <div class="cmd-box" style="color:var(--accent3);margin-top:10px;"><span class="cmd-label">TERMINAL (paru)</span>paru -S ffmpeg-full</div>
+          <div class="cmd-actions" style="margin-top:8px;">
+            <button class="btn btn-primary" onclick="copyText('paru -S ffmpeg-full')">📋 Copy</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Manjaro</div>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL</span>sudo pacman -Syu ffmpeg</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('sudo pacman -Syu ffmpeg')">📋 Copy</button>
+          </div>
+          <div class="tip-box" style="margin-top:14px;">
+            <span class="tip-icon">💡</span>
+            <span>Manjaro packages may lag behind Arch by a few days. Use <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;">-Syu</code> to update all packages at once.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANDROID (Termux) -->
+      <div id="os-android" class="os-panel" style="display:none;">
+        <div class="card">
+          <div class="card-title">Prerequisites — Install Termux</div>
+          <div class="tip-box">
+            <span class="tip-icon">⚠️</span>
+            <span>Do <strong>not</strong> use the Play Store version of Termux — it is outdated. Install from <strong style="color:var(--accent2);">F-Droid</strong> at <strong style="color:var(--accent2);">f-droid.org</strong> or GitHub Releases.</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Install FFmpeg in Termux <span class="tag tag-green" style="font-size:11px;margin-left:6px;">Recommended</span></div>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMUX</span>pkg update && pkg install ffmpeg</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('pkg update && pkg install ffmpeg')">📋 Copy</button>
+          </div>
+          <div class="tip-box" style="margin-top:14px;">
+            <span class="tip-icon">✅</span>
+            <span>Termux's FFmpeg build includes most common codecs. It runs natively — no root required.</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Grant Storage Access</div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">To access your phone's videos and downloads folder:</p>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMUX</span>termux-setup-storage</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('termux-setup-storage')">📋 Copy</button>
+          </div>
+          <div class="tip-box" style="margin-top:14px;">
+            <span class="tip-icon">💡</span>
+            <span>After running, your storage is accessible at <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;">~/storage/</code>. For example, videos in <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;">~/storage/dcim/</code> and downloads in <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;">~/storage/downloads/</code>.</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Example — Compress a video on Android</div>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMUX</span>ffmpeg -i ~/storage/dcim/Camera/video.mp4 -c:v libx264 -crf 28 -preset fast ~/storage/downloads/output.mp4</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('ffmpeg -i ~/storage/dcim/Camera/video.mp4 -c:v libx264 -crf 28 -preset fast ~/storage/downloads/output.mp4')">📋 Copy</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Useful Termux packages</div>
+          <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMUX</span>pkg install ffmpeg yt-dlp python</div>
+          <div class="cmd-actions">
+            <button class="btn btn-primary" onclick="copyText('pkg install ffmpeg yt-dlp python')">📋 Copy</button>
+          </div>
+          <div class="tip-box" style="margin-top:14px;">
+            <span class="tip-icon">💡</span>
+            <span><strong>yt-dlp</strong> is a popular download tool that uses FFmpeg for post-processing. Together they let you download and convert media directly on your phone.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- VERIFY (shown always at the bottom) -->
+      <div class="card" style="margin-top:8px;border-color:var(--accent);background:rgba(124,92,252,0.04);">
+        <div class="card-title">✅ Verify Installation (all platforms)</div>
+        <div class="cmd-box" style="color:var(--accent3);"><span class="cmd-label">TERMINAL / CMD</span>ffmpeg -version</div>
+        <div class="cmd-actions">
+          <button class="btn btn-primary" onclick="copyText('ffmpeg -version')">📋 Copy</button>
+          <button class="btn btn-secondary" onclick="copyText('ffmpeg -buildconf')">📋 Copy Build Config</button>
+        </div>
+        <div class="tip-box" style="margin-top:14px;">
+          <span class="tip-icon">✅</span>
+          <span>You should see the FFmpeg version, build date, and enabled libraries. If you get <em>"command not found"</em>, FFmpeg is not in your PATH — double-check the installation steps for your OS.</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast">
+  <span id="toast-icon">✅</span>
+  <span id="toast-msg">Copied to clipboard!</span>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const state = {
+  compress: { file: 'input.mp4', crf: 18, bitrate: false },
+  resize: { file: 'input.mp4' },
+  trim: { file: 'input.mp4', mode: 'fast' },
+  merge: { files: [] },
+  convert: { file: 'input.mp4', fmt: 'mp4' },
+  audio: { file: 'input.mp4' },
+  filters: { file: 'input.mp4' }
+};
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+function switchInner(panel, sub, el) {
+  document.querySelectorAll('.' + panel + '-panel').forEach(p => p.style.display = 'none');
+  document.getElementById(panel + '-' + sub).style.display = 'block';
+  el.closest('.inner-tabs').querySelectorAll('.inner-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── File handling ─────────────────────────────────────────────────────────────
+function setFile(key, input) {
+  if (!input.files[0]) return;
+  const name = input.files[0].name;
+  const el = document.getElementById('fn-' + key);
+  if (el) el.textContent = '📄 ' + name;
+
+  if (key === 'compress') { state.compress.file = name; buildCompress(); }
+  else if (key === 'resize') { state.resize.file = name; buildResize(); }
+  else if (key === 'trim') { state.trim.file = name; buildTrim(); }
+  else if (key === 'convert') { state.convert.file = name; buildConvert(); }
+  else if (key === 'audio') { state.audio.file = name; buildAudio(); }
+  else if (key === 'audio-rm') { buildAudioRm(name); }
+  else if (key === 'audio-rep-v') { buildAudioRep(); }
+  else if (key === 'audio-rep-a') { buildAudioRep(); }
+  else if (key === 'audio-vol') { buildAudioVol(); }
+  else if (key === 'filters') { state.filters.file = name; buildFilters(); }
+}
+
+// ── Range update ──────────────────────────────────────────────────────────────
+function updateRange(id, val) {
+  document.getElementById(id).textContent = val;
+}
+
+// ── Preset selectors ──────────────────────────────────────────────────────────
+function selectPreset(type, el, opts) {
+  el.closest('.preset-grid').querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  if (type === 'compress') {
+    state.compress.bitrate = !!opts.bitrate;
+    document.getElementById('compress-crf-row').style.display = opts.bitrate ? 'none' : 'block';
+    document.getElementById('compress-bitrate-row').style.display = opts.bitrate ? 'block' : 'none';
+    if (opts.crf !== null && opts.crf !== undefined) {
+      document.getElementById('compress-crf').value = opts.crf;
+      document.getElementById('compress-crf-val').textContent = opts.crf;
+    }
+    buildCompress();
+  }
+}
+
+function selectConvertFmt(fmt, el) {
+  el.closest('.preset-grid').querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  state.convert.fmt = fmt;
+  document.getElementById('convert-out').value = 'output.' + fmt;
+  if (fmt === 'webm') {
+    document.getElementById('convert-vcodec').value = 'libvpx-vp9';
+    document.getElementById('convert-acodec').value = 'libopus';
+  } else if (fmt === 'gif') {
+    document.getElementById('convert-vcodec').value = 'copy';
+    document.getElementById('convert-acodec').value = 'none';
+  } else {
+    document.getElementById('convert-vcodec').value = 'libx264';
+    document.getElementById('convert-acodec').value = 'aac';
+  }
+  buildConvert();
+}
+
+function setResolution(w, h, el) {
+  el.closest('.preset-grid').querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  if (w) { document.getElementById('resize-w').value = w; document.getElementById('resize-h').value = h; }
+  buildResize();
+}
+
+// ── Command builders ──────────────────────────────────────────────────────────
+function q(f) { return '"' + f + '"'; }
+function setCmd(id, cmd) { document.getElementById(id).innerHTML = '<span class="cmd-label">COMMAND</span>' + escHtml(cmd); }
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function buildCompress() {
+  const f = state.compress.file;
+  const codec = document.getElementById('compress-vcodec').value;
+  const preset = document.getElementById('compress-preset').value;
+  const acodec = document.getElementById('compress-acodec').value;
+  const out = document.getElementById('compress-out').value;
+  const crf = document.getElementById('compress-crf').value;
+  const bv = document.getElementById('compress-bitrate-val').value;
+  const useBitrate = state.compress.bitrate;
+
+  let vpart = codec === 'copy' ? '-c:v copy' : `-c:v ${codec} ${useBitrate ? `-b:v ${bv}` : `-crf ${crf}`} -preset ${preset}`;
+  let apart = acodec === 'none' ? '-an' : `-c:a ${acodec}`;
+  setCmd('compress-cmd', `ffmpeg -i ${q(f)} ${vpart} ${apart} ${q(out)}`);
+}
+
+function buildResize() {
+  const f = state.resize.file;
+  const w = document.getElementById('resize-w').value;
+  const h = document.getElementById('resize-h').value;
+  const crf = document.getElementById('resize-crf').value;
+  const out = document.getElementById('resize-out').value;
+  setCmd('resize-cmd', `ffmpeg -i ${q(f)} -vf "scale=${w}:${h}" -c:v libx264 -crf ${crf} -c:a copy ${q(out)}`);
+}
+
+function buildTrim() {
+  const f = state.trim.file;
+  const s = document.getElementById('trim-start').value;
+  const e = document.getElementById('trim-end').value;
+  const d = document.getElementById('trim-dur').value.trim();
+  const out = document.getElementById('trim-out').value;
+  const fast = state.trim.mode === 'fast';
+
+  let timeArgs = '';
+  if (fast) {
+    timeArgs = `-ss ${s} ${d ? `-t ${d}` : `-to ${e}`}`;
+    setCmd('trim-cmd', `ffmpeg ${timeArgs} -i ${q(f)} -c copy ${q(out)}`);
+  } else {
+    setCmd('trim-cmd', `ffmpeg -i ${q(f)} -ss ${s} ${d ? `-t ${d}` : `-to ${e}`} -c:v libx264 -crf 23 -c:a aac ${q(out)}`);
+  }
+}
+
+function setTrimMode(m) {
+  state.trim.mode = m;
+  document.getElementById('trim-mode-fast').classList.toggle('active', m === 'fast');
+  document.getElementById('trim-mode-accurate').classList.toggle('active', m === 'accurate');
+  buildTrim();
+}
+
+let mergeFiles = [];
+function addMergeFiles(input) {
+  for (const f of input.files) mergeFiles.push(f.name);
+  renderMergeList();
+  buildMerge();
+}
+
+function renderMergeList() {
+  const list = document.getElementById('merge-list');
+  list.innerHTML = '';
+  mergeFiles.forEach((f, i) => {
+    list.innerHTML += `<div class="merge-item">
+      <div class="merge-item-num">${i+1}</div>
+      <div class="merge-item-name">${escHtml(f)}</div>
+      <span class="merge-item-remove" onclick="removeMergeFile(${i})">✕</span>
+    </div>`;
+  });
+}
+
+function removeMergeFile(i) {
+  mergeFiles.splice(i, 1);
+  renderMergeList();
+  buildMerge();
+}
+
+function buildMerge() {
+  const out = document.getElementById('merge-out').value;
+  const method = document.getElementById('merge-method').value;
+  if (mergeFiles.length < 2) {
+    setCmd('merge-cmd', 'Add at least 2 files above to generate merge command.');
+    return;
+  }
+  if (method === 'concat-demuxer') {
+    const echoLines = mergeFiles.map((f, i) => `${i === 0 ? '(echo' : 'echo'} file '${f}'`).join(' & ');
+    setCmd('merge-cmd', `${echoLines}) > filelist.txt & ffmpeg -f concat -safe 0 -i filelist.txt -c copy ${q(out)} & del filelist.txt`);
+  } else {
+    const inputs = mergeFiles.map(f => `-i ${q(f)}`).join(' ');
+    const filter = mergeFiles.map((_,i)=>`[${i}:v:0][${i}:a:0]`).join('') + `concat=n=${mergeFiles.length}:v=1:a=1[outv][outa]`;
+    setCmd('merge-cmd', `ffmpeg ${inputs} -filter_complex "${filter}" -map "[outv]" -map "[outa]" ${q(out)}`);
+  }
+}
+
+function buildConvert() {
+  const f = state.convert.file;
+  const vc = document.getElementById('convert-vcodec').value;
+  const ac = document.getElementById('convert-acodec').value;
+  const out = document.getElementById('convert-out').value;
+  const fmt = state.convert.fmt;
+
+  let extra = '';
+  if (fmt === 'gif') extra = ' -vf "fps=15,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"';
+
+  const apart = ac === 'none' ? '-an' : `-c:a ${ac}`;
+  setCmd('convert-cmd', `ffmpeg -i ${q(f)} -c:v ${vc}${extra} ${apart} ${q(out)}`);
+}
+
+function buildAudio() {
+  const f = state.audio.file;
+  const ext = document.getElementById('audio-ext').value;
+  const out = document.getElementById('audio-out').value;
+  const codecs = { mp3: 'libmp3lame', aac: 'aac', wav: 'pcm_s16le', flac: 'flac', ogg: 'libvorbis' };
+  document.getElementById('audio-out').value = out.replace(/\.[^.]+$/, '') + '.' + ext;
+  setCmd('audio-cmd', `ffmpeg -i ${q(f)} -vn -c:a ${codecs[ext]} ${q(document.getElementById('audio-out').value)}`);
+}
+
+function buildAudioRm(name) {
+  const fn = name || state.audio.file;
+  const out = document.getElementById('audio-rm-out').value;
+  setCmd('audio-rm-cmd', `ffmpeg -i ${q(fn)} -an -c:v copy ${q(out)}`);
+}
+
+function buildAudioRep() {
+  const vn = document.getElementById('fn-audio-rep-v').textContent.replace('📄 ','') || 'input_video.mp4';
+  const an = document.getElementById('fn-audio-rep-a').textContent.replace('📄 ','') || 'new_audio.mp3';
+  const out = document.getElementById('audio-rep-out').value;
+  setCmd('audio-rep-cmd', `ffmpeg -i ${q(vn)} -i ${q(an)} -c:v copy -map 0:v:0 -map 1:a:0 -shortest ${q(out)}`);
+}
+
+function buildAudioVol() {
+  const fn = document.getElementById('fn-audio-vol').textContent.replace('📄 ','') || 'input.mp4';
+  const vol = document.getElementById('audio-vol-range').value;
+  const out = document.getElementById('audio-vol-out').value;
+  setCmd('audio-vol-cmd', `ffmpeg -i ${q(fn)} -filter:a "volume=${vol}" -c:v copy ${q(out)}`);
+}
+
+function buildFilters() {
+  const f = state.filters.file;
+  const speed = parseFloat(document.getElementById('filter-speed').value);
+  const rotate = document.getElementById('filter-rotate').value;
+  const hflip = document.getElementById('filter-hflip').checked;
+  const vflip = document.getElementById('filter-vflip').checked;
+  const brightness = parseFloat(document.getElementById('filter-brightness').value);
+  const contrast = parseFloat(document.getElementById('filter-contrast').value);
+  const saturation = parseFloat(document.getElementById('filter-saturation').value);
+  const fps = document.getElementById('filter-fps').value;
+  const crf = document.getElementById('filter-crf').value;
+  const out = document.getElementById('filter-out').value;
+
+  let vfilters = [];
+  let afilters = [];
+
+  if (rotate !== 'none') {
+    const rotMap = { '90': 'transpose=1', '180': 'transpose=1,transpose=1', '270': 'transpose=2' };
+    vfilters.push(rotMap[rotate]);
+  }
+  if (hflip) vfilters.push('hflip');
+  if (vflip) vfilters.push('vflip');
+  if (fps) vfilters.push(`fps=${fps}`);
+  if (speed !== 1) {
+    vfilters.push(`setpts=${(1/speed).toFixed(4)}*PTS`);
+    afilters.push(`atempo=${Math.min(2, Math.max(0.5, speed))}`);
+  }
+  if (brightness !== 0 || contrast !== 0 || saturation !== 1) {
+    vfilters.push(`eq=brightness=${brightness}:contrast=${contrast}:saturation=${saturation}`);
+  }
+
+  let cmd = `ffmpeg -i ${q(f)}`;
+  if (vfilters.length) cmd += ` -vf "${vfilters.join(',')}"`;
+  if (afilters.length) cmd += ` -af "${afilters.join(',')}"`;
+  cmd += ` -c:v libx264 -crf ${crf}`;
+  if (!afilters.length) cmd += ' -c:a copy';
+  cmd += ` ${q(out)}`;
+  setCmd('filters-cmd', cmd);
+}
+
+// ── Custom templates ──────────────────────────────────────────────────────────
+const templates = {
+  screenshot: 'ffmpeg -i "input.mp4" -ss 00:00:05 -frames:v 1 "screenshot.png"',
+  gif: 'ffmpeg -i "input.mp4" -ss 0 -t 5 -vf "fps=15,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" "output.gif"',
+  stabilize: 'ffmpeg -i "input.mp4" -vf vidstabdetect=shakiness=10:accuracy=15 -f null - && ffmpeg -i "input.mp4" -vf vidstabtransform=smoothing=30 -c:v libx264 -crf 23 "output_stable.mp4"',
+  watermark: 'ffmpeg -i "input.mp4" -i "watermark.png" -filter_complex "overlay=W-w-10:H-h-10" -c:v libx264 -crf 23 -c:a copy "output_watermark.mp4"',
+  deinterlace: 'ffmpeg -i "input.mp4" -vf "yadif=mode=1" -c:v libx264 -crf 23 -c:a copy "output_deinterlaced.mp4"',
+  '2pass': 'ffmpeg -y -i "input.mp4" -c:v libx264 -b:v 2000k -pass 1 -an -f null NUL && ffmpeg -i "input.mp4" -c:v libx264 -b:v 2000k -pass 2 -c:a aac "output_2pass.mp4"'
+};
+
+function loadTemplate(name) {
+  document.getElementById('custom-cmd-input').value = templates[name];
+  document.querySelectorAll('#tab-custom .preset-btn').forEach(b => b.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+function syncCustom() {}
+function copyCustom() { copyText(document.getElementById('custom-cmd-input').value); }
+function saveCustomBat() { downloadBat(document.getElementById('custom-cmd-input').value, 'custom_ffmpeg'); }
+function clearCustom() { document.getElementById('custom-cmd-input').value = ''; }
+
+// ── Clipboard & download ──────────────────────────────────────────────────────
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('✅', 'Copied to clipboard!');
+  } catch {
+    toast('⚠️', 'Please copy manually');
+  }
+}
+
+function copyCmd(id) {
+  const el = document.getElementById(id);
+  copyText(el.textContent.replace('COMMAND', '').trim());
+}
+
+function saveBat(id, name) {
+  const cmd = document.getElementById(id).textContent.replace('COMMAND', '').trim();
+  downloadBat(cmd, name);
+}
+
+function downloadBat(cmd, name) {
+  const content = `@echo off\necho Running FFmpeg...\n${cmd}\necho.\necho Done! Press any key to close.\npause`;
+  const blob = new Blob([content], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `ffmpeg_${name}.bat`;
+  a.click();
+  toast('💾', 'Saved as ffmpeg_' + name + '.bat');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(icon, msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-icon').textContent = icon;
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Drag over ─────────────────────────────────────────────────────────────────
+document.querySelectorAll('.dropzone').forEach(dz => {
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', () => dz.classList.remove('dragover'));
+});
+
+function switchOS(os, el) {
+  document.querySelectorAll('.os-panel').forEach(p => p.style.display = 'none');
+  document.getElementById('os-' + os).style.display = 'block';
+  el.closest('.inner-tabs').querySelectorAll('.inner-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+buildCompress();
+buildResize();
+buildTrim();
+buildConvert();
+buildFilters();
+</script>
+</body>
+</html>
