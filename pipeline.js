@@ -793,11 +793,11 @@ async function loadLaMaModel(onProgress) {
   try {
     // ── Load onnxruntime-web via esm.sh ──
     onProgress && onProgress(2, 'Loading ONNX Runtime…', '');
-    const ortModule = await import('https://esm.sh/onnxruntime-web@1.21.0');
+    const ortModule = await import('https://esm.sh/onnxruntime-web'); // @1.21.0
     const ort = ortModule.default || ortModule;
 
     // Point WASM binaries to CDN
-    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/';
+    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/'; // @1.21.0/dist/
     ort.env.wasm.numThreads = 1; // safer cross-browser default
 
     // ── Try to get model from IndexedDB cache ──
@@ -898,7 +898,7 @@ async function downloadWithProgress(url, onProgress) {
 // ── Run LaMa on a 512×512 tile ──
 async function lamaInpaint(session, imageCanvas512, maskCanvas512) {
   // imageCanvas512 and maskCanvas512 must be exactly 512×512
-  const ortModule = await import('https://esm.sh/onnxruntime-web@1.21.0');
+  const ortModule = await import('https://esm.sh/onnxruntime-web'); // @1.21.0
   const ort = ortModule.default || ortModule;
 
   const imgCtx = imageCanvas512.getContext('2d');
@@ -1384,11 +1384,11 @@ let _tfMod = null, _cocoMod = null, _faceMod = null;
 async function loadTFModels(onProgress) {
   if (_cocoMod && _faceMod) return { coco: _cocoMod, face: _faceMod };
   onProgress(5, 'Importing TensorFlow.js…', '');
-  if (!_tfMod) { _tfMod = await import('https://esm.sh/@tensorflow/tfjs@4.22.0'); await _tfMod.ready(); }
+  if (!_tfMod) { _tfMod = await import('https://esm.sh/@tensorflow/tfjs'); await _tfMod.ready(); } // @4.22.0
   onProgress(20, 'TF.js ready · loading COCO-SSD…', '');
   const [cocoMod, blazeMod] = await Promise.all([
-    import('https://esm.sh/@tensorflow-models/coco-ssd@2.2.3'),
-    import('https://esm.sh/@tensorflow-models/blazeface@0.1.0'),
+    import('https://esm.sh/@tensorflow-models/coco-ssd'), // @2.2.3
+    import('https://esm.sh/@tensorflow-models/blazeface'), // @0.1.0
   ]);
   onProgress(45, 'Modules loaded · initialising models…', '');
   const [cocoModel, faceModel] = await Promise.all([cocoMod.load({ base: 'lite_mobilenet_v2' }), blazeMod.load()]);
@@ -1770,7 +1770,7 @@ async function loadAIModule() {
   log('  → importing @imgly/background-removal@1.7.0...', 'warn');
   showModelOverlay(); updateModelProgress(2, 'Importing module…', '');
   try {
-    const mod = await import('https://esm.sh/@imgly/background-removal@1.7.0');
+    const mod = await import('https://esm.sh/@imgly/background-removal'); // @1.7.0
     _bgRemovalMod = mod.removeBackground || mod.default;
     if (!_bgRemovalMod) throw new Error('removeBackground function not found in module');
     log('  ✓ module loaded', 'ok');
